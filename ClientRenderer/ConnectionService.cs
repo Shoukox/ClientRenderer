@@ -54,10 +54,24 @@ public static class ConnectionService
 
             Console.WriteLine($"Start rendering");
 
-            string videoFileName = Path.GetFileNameWithoutExtension(jobMessage);
-            var result = await new DanserGo()
-                .ExecuteAsync($"-r \"{tempReplayPath}\" " +
-                              $"-out \"{videoFileName}\"");
+            DanserResult result;
+            string videoFileName;
+            try
+            {
+                videoFileName = Path.GetFileNameWithoutExtension(jobMessage);
+                result = await new DanserGo()
+                    .ExecuteAsync($"-r \"{tempReplayPath}\" " +
+                                  $"-out \"{videoFileName}\"");
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Failed to render replay! Error when calling danser-go");
+                Console.WriteLine(ex.ToString());
+                await IndicateRenderError(connection, jobMessage);
+                _semaphoreSlim.Release();
+                return;
+            }
 
             if (!result.Success)
             {
