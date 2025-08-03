@@ -31,7 +31,7 @@ public static class ConnectionService
             Console.WriteLine($"Downloaded!");
             Console.WriteLine($"Start rendering");
 
-            string videoFileName = Path.GetFileNameWithoutExtension(jobMessage) + ".mp4";
+            string videoFileName = Path.GetFileNameWithoutExtension(jobMessage);
             var result = await new DanserGo()
                 .ExecuteAsync($"-r \"{tempReplayPath}\" " +
                               $"-out \"{videoFileName}\"");
@@ -48,7 +48,7 @@ public static class ConnectionService
 
             try
             {
-                string videoPath = Path.Combine(DanserGo.VideosPath, videoFileName);
+                string videoPath = Path.Combine(DanserGo.VideosPath, videoFileName + ".mp4");
                 await WebRequestsService.PostVideoAsync(videoPath, jobMessage);
             }
             catch (Exception ex)
