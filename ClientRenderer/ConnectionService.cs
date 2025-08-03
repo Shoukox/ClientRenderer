@@ -48,7 +48,7 @@ public static class ConnectionService
 
             try
             {
-                string videoPath = Path.Combine(DanserGo.VideosPath, $"{videoFileName}.mp4");
+                string videoPath = Path.Combine(DanserGo.VideosPath, videoFileName);
                 await WebRequestsService.PostVideoAsync(videoPath, jobMessage);
             }
             catch (Exception ex)
