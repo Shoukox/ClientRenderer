@@ -10,6 +10,7 @@
     <ItemGroup>
       <PackageReference Include="Flurl" Version="4.0.0" />
       <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.18" />
+      <PackageReference Include="OsuParsers" Version="1.7.2" />
     </ItemGroup>
 
     <ItemGroup>

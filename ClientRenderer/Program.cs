@@ -23,6 +23,8 @@ string hubName = "render-job-hub";
 string hubUrl = Url.Combine(args[1], hubName);
 WebRequestsService.ServerUrl = args[1];
 
+ReplaysService.LoadAllBeatmapsHashes();
+
 while (!token.IsCancellationRequested)
 {
     try
@@ -32,7 +34,7 @@ while (!token.IsCancellationRequested)
             .WithAutomaticReconnect()
             .Build();
         await connection.StartAsync();
-        ConnectionService.SetupEventHandlers(connection);
+        ConnectionService.SetupEventHandlers(connection, token);
         Console.WriteLine("Connected to SignalR hub successfully!");
         Console.WriteLine($"Connection ID: {connection.ConnectionId}");
 

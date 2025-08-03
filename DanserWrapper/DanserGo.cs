@@ -10,6 +10,7 @@ public class DanserGo
     public readonly static string DanserGoPath = Path.Combine( Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "danser", "danser-cli");
     public readonly static string DanserGoDirectoryPath = Path.GetDirectoryName(DanserGoPath)!;
     public readonly static string VideosPath = Path.Combine(DanserGoDirectoryPath, "Videos");
+    public readonly static string SongsPath = Path.Combine(DanserGoDirectoryPath, "Songs");
 
     public DanserGo()
     {
@@ -73,8 +74,8 @@ public class DanserGo
     {
         string configPath = Path.Combine(DanserGoDirectoryPath, "settings", "default.json");
         var json = JsonConvert.DeserializeObject<dynamic>(File.ReadAllText(configPath))!;
-        
-        json["General"]["OsuSongsDir"] = Path.Combine(DanserGoDirectoryPath, "Songs");
+
+        json["General"]["OsuSongsDir"] = SongsPath;
         json["General"]["OsuSkinsDir"] = Path.Combine(DanserGoDirectoryPath, "Skins");
         json["General"]["OsuReplaysDir"] = Path.Combine(DanserGoDirectoryPath, "Replays");
         

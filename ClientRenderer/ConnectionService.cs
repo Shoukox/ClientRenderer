@@ -5,20 +5,20 @@ namespace ClientRenderer;
 
 public static class ConnectionService
 {
-    public static void SetupEventHandlers(HubConnection connection)
+    public static void SetupEventHandlers(HubConnection connection, CancellationToken token)
     {
-        // Listen for messages from the server
-        // Replace "ReceiveMessage" with your actual hub method name
         connection.On<string, Task>("RenderJob", async (jobMessage) =>
         {
             Console.WriteLine($"Got a new job! Replay name: {jobMessage}");
             Console.WriteLine($"Downloading replay...");
 
             string tempReplayPath;
+            byte[] replayBytes;
             try
             {
                 tempReplayPath = Path.GetTempFileName();
-                await File.WriteAllBytesAsync(tempReplayPath, await WebRequestsService.DownloadReplayAsync(jobMessage));
+                replayBytes = await WebRequestsService.DownloadReplayAsync(jobMessage);
+                await File.WriteAllBytesAsync(tempReplayPath, replayBytes, token);
             }
             catch (Exception ex)
             {
@@ -27,8 +27,28 @@ public static class ConnectionService
                 return;
             }
 
-
             Console.WriteLine($"Downloaded!");
+            Console.WriteLine($"Start rendering");
+
+            Console.WriteLine($"Checking for presence of the requested beatmap...");
+            
+            string beatmapHashFromReplay = ReplaysService.GetBeatmapMd5HashFromReplay(replayBytes);
+            if (!ReplaysService.BeatmapExists(beatmapHashFromReplay))
+            {
+                Console.WriteLine($"The requested beatmap does not exist!");
+                Console.WriteLine($"Downloading beatmapset...");
+                
+                int beatmapsetId = await OsuBeatmapsetsService.GetBeatmapsetId(beatmapHashFromReplay);
+                Stream oszStream = await OsuBeatmapsetsService.DownloadBeatmapset(beatmapsetId);
+                
+                using var fileStream = File.OpenWrite(Path.Combine(DanserGo.SongsPath, $"{beatmapHashFromReplay}.osz"));
+                await oszStream.CopyToAsync(fileStream, token);
+                
+                await Task.Run(ReplaysService.LoadAllBeatmapsHashes, token);
+                
+                Console.WriteLine($"Sucessfully downloaded beatmapset! (.osz)");
+            }
+
             Console.WriteLine($"Start rendering");
 
             string videoFileName = Path.GetFileNameWithoutExtension(jobMessage);
@@ -67,16 +87,30 @@ public static class ConnectionService
         connection.Closed += async (error) =>
         {
             Console.WriteLine($"Connection closed: {error?.Message ?? "No error"}");
-            await Task.Delay(5000);
 
-            try
+            while (!token.IsCancellationRequested)
             {
-                await connection.StartAsync();
-                Console.WriteLine("Reconnected!");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Reconnection failed: {ex.Message}");
+                try
+                {
+                    await Task.Delay(5000, token);
+                    await connection.StartAsync(token);
+                    Console.WriteLine("Reconnected!");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Reconnection failed: {ex.Message}");
+                    Console.WriteLine($"Retrying after 5 seconds...");
+                }
+
+                try
+                {
+                    await Task.Delay(5000, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine($"Operation cancelled");
+                    return;
+                }
             }
         };
 
