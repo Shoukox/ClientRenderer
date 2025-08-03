@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientRenderer", "ClientRenderer\ClientRenderer.csproj", "{70B0410B-4CEA-4450-B10F-468FEAD45BBE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DanserWrapper", "DanserWrapper\DanserWrapper.csproj", "{9EE446C0-2635-4156-96BB-D51211FD84BC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{70B0410B-4CEA-4450-B10F-468FEAD45BBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70B0410B-4CEA-4450-B10F-468FEAD45BBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70B0410B-4CEA-4450-B10F-468FEAD45BBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70B0410B-4CEA-4450-B10F-468FEAD45BBE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9EE446C0-2635-4156-96BB-D51211FD84BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9EE446C0-2635-4156-96BB-D51211FD84BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9EE446C0-2635-4156-96BB-D51211FD84BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9EE446C0-2635-4156-96BB-D51211FD84BC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
