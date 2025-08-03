@@ -27,20 +27,29 @@ while (!token.IsCancellationRequested)
     try
     {
         var connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl) 
+            .WithUrl(hubUrl)
             .WithAutomaticReconnect()
             .Build();
         await connection.StartAsync();
         ConnectionService.SetupEventHandlers(connection);
         Console.WriteLine("Connected to SignalR hub successfully!");
         Console.WriteLine($"Connection ID: {connection.ConnectionId}");
-        
+
         await Task.Delay(Timeout.Infinite, token);
     }
     catch (Exception ex)
     {
         Console.WriteLine($"Error connecting to SignalR hub: {ex.Message}");
         Console.WriteLine($"Retrying in 5 seconds...");
+    }
+
+    try
+    {
         await Task.Delay(5000, token);
+    }
+    catch (OperationCanceledException ex)
+    {
+        Console.WriteLine(ex.Message);
+        return;
     }
 }
