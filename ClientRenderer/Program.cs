@@ -15,6 +15,7 @@ if (!IOService.DanserExists())
     return;
 }
 
+IOService.CreateVideosDirectoryIfNeeded();
 DanserGo.AdjustConfig();
 ConsoleService.ConfigureConsoleClose(out var token);
 
