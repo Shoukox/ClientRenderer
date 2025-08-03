@@ -7,7 +7,7 @@ namespace DanserWrapper;
 
 public class DanserGo
 {
-    public readonly static string DanserGoPath = Path.Combine( Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "danser", "danser-cli");
+    public static string DanserGoPath = Path.Combine( Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "danser", "danser-cli");
     public readonly static string DanserGoDirectoryPath = Path.GetDirectoryName(DanserGoPath)!;
     public readonly static string VideosPath = Path.Combine(DanserGoDirectoryPath, "Videos");
     public readonly static string SongsPath = Path.Combine(DanserGoDirectoryPath, "Songs");
@@ -70,7 +70,11 @@ public class DanserGo
         };
     }
 
-    public static void AdjustConfig()
+    /// <summary>
+    /// Edits some values in danser config file
+    /// </summary>
+    /// <param name="encoder">Use h264_nvenc for nvidia and libx264 for other</param>
+    public static void AdjustConfig(string encoder = "h264_nvenc")
     {
         string configPath = Path.Combine(DanserGoDirectoryPath, "settings", "default.json");
         var json = JsonConvert.DeserializeObject<dynamic>(File.ReadAllText(configPath))!;
@@ -79,13 +83,21 @@ public class DanserGo
         json["General"]["OsuSkinsDir"] = Path.Combine(DanserGoDirectoryPath, "Skins");
         json["General"]["OsuReplaysDir"] = Path.Combine(DanserGoDirectoryPath, "Replays");
         
-        json["Recording"]["Encoder"] = "h264_nvenc";
+        json["Recording"]["Encoder"] = encoder;
         json["Recording"]["AudioCodec"] = "aac";
         json["Recording"]["FrameWidth"] = 1280;
         json["Recording"]["FrameHeight"] = 720;
         json["Recording"]["OutputDir"] = "Videos";
         
         File.WriteAllText(configPath, JsonConvert.SerializeObject(json, Formatting.Indented));
+    }
+
+    public static void AdjustDanserGoPath(OperatingSystem operatingSystem)
+    {
+        if (operatingSystem.Platform == PlatformID.Win32NT)
+        {
+            DanserGoPath += ".exe";
+        }
     }
 }
 

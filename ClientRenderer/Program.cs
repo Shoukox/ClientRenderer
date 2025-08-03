@@ -5,18 +5,28 @@ using Microsoft.AspNetCore.SignalR.Client;
 
 if (args.Length < 2 || args[0] != "-s" || !Uri.IsWellFormedUriString(args[1], UriKind.Absolute))
 {
-    Console.WriteLine("Usage: ./ClientRenderer.exe -s <url>");
+    Console.WriteLine("Usage: ./ClientRenderer.exe -s <url> -encoder <h264_nvenc/libx264>");
     return;
 }
 
+string chosenEncoder = "h264_nvenc"; // default nvenc
+if (args.Length == 4 && args[3] is "libx264")
+{
+    chosenEncoder = args[3];
+}
+
+DanserGo.AdjustDanserGoPath(Environment.OSVersion);
 if (!IOService.DanserExists())
 {
     Console.WriteLine("Danser-go does not exist!");
     return;
 }
 
-IOService.CreateVideosDirectoryIfNeeded();
-DanserGo.AdjustConfig();
+
+IOService.CreateDirectoriesIfNeeded();
+DanserGo.AdjustConfig(chosenEncoder);
+Console.WriteLine($"{chosenEncoder} has been set as a default danser encoder.");
+
 ConsoleService.ConfigureConsoleClose(out var token);
 
 string hubName = "render-job-hub";
