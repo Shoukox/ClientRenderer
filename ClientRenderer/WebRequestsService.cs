@@ -4,7 +4,7 @@ namespace ClientRenderer;
 
 public static class WebRequestsService
 {
-    private static readonly HttpClient HttpClient = new();
+    private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromMinutes(30) };
     public static string ServerUrl = null!; // will be set in Program class
 
     public static async Task PostVideoAsync(string videoPath, string jobMessage)
