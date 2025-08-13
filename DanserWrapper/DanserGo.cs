@@ -14,10 +14,11 @@ public class DanserGo
 
     public DanserGo()
     {
-        if (!File.Exists(DanserGoPath))
+        if (!DanserExists())
         {
             throw new FileNotFoundException($"danser-go executable not found at: {DanserGoPath}");
         }
+        CreateDirectoriesIfNeeded();
     }
 
     public async Task<DanserResult> ExecuteAsync(string arguments, int timeoutMs = 180_000)
@@ -97,6 +98,20 @@ public class DanserGo
         if (operatingSystem.Platform == PlatformID.Win32NT)
         {
             DanserGoPath += ".exe";
+        }
+    }
+
+    public static bool DanserExists() => File.Exists(DanserGoPath);
+    public static void CreateDirectoriesIfNeeded()
+    {
+        if (!Directory.Exists(VideosPath))
+        {
+            Directory.CreateDirectory(VideosPath);
+        }
+
+        if (!Directory.Exists(SongsPath))
+        {
+            Directory.CreateDirectory(SongsPath);
         }
     }
 }

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ClientRenderer": {
+      "commandName": "Project",
+      "commandLineArgs": "-s http://[2a03:4000:6:417a:1::105]"
+    }
+  }
+}

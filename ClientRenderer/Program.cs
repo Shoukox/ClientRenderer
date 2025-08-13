@@ -1,4 +1,6 @@
 ﻿using ClientRenderer;
+using ClientRenderer.Render;
+using ClientRenderer.Utils;
 using DanserWrapper;
 using Flurl;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -16,16 +18,14 @@ if (args.Length == 4 && args[3] is "libx264")
 }
 
 DanserGo.AdjustDanserGoPath(Environment.OSVersion);
-if (!IOService.DanserExists())
+if (!DanserGo.DanserExists())
 {
     Console.WriteLine("Danser-go does not exist!");
     return;
 }
-
-
-IOService.CreateDirectoriesIfNeeded();
 DanserGo.AdjustConfig(chosenEncoder);
 Console.WriteLine($"{chosenEncoder} has been set as a default danser encoder.");
+DanserGo.CreateDirectoriesIfNeeded();
 
 ConsoleService.ConfigureConsoleClose(out var token);
 
@@ -44,7 +44,7 @@ while (!token.IsCancellationRequested)
             .WithAutomaticReconnect()
             .Build();
         await connection.StartAsync();
-        ConnectionService.SetupEventHandlers(connection, token);
+        HubService.SetupEventHandlers(connection, token);
         Console.WriteLine("Connected to SignalR hub successfully!");
         Console.WriteLine($"Connection ID: {connection.ConnectionId}");
 
