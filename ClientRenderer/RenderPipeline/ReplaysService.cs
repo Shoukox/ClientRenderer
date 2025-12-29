@@ -26,9 +26,9 @@ public static class ReplaysService
         }
     }
 
-    public static string GetBeatmapMd5HashFromReplay(byte[] replayBytes)
+    public static Replay DecodeReplay(byte[] replayBytes)
     {
-        return ReplayDecoder.Decode(new MemoryStream(replayBytes)).BeatmapMD5Hash;
+        return ReplayDecoder.Decode(new MemoryStream(replayBytes));
     }
 
     public static bool BeatmapExists(string beatmapHash)
@@ -51,7 +51,7 @@ public static class ReplaysService
     public static async Task<string> CreateMd5(byte[] bytes)
     {
         byte[] inputBytes = bytes;
-        
+
         using System.Security.Cryptography.MD5 md5 = System.Security.Cryptography.MD5.Create();
         byte[] hashBytes = md5.ComputeHash(inputBytes);
         return Convert.ToHexString(hashBytes);

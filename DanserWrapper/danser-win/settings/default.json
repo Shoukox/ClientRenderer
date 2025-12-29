@@ -1,22 +1,22 @@
 {
 	"General": {
-		"OsuSongsDir": "C:\\Users\\shach\\AppData\\Local\\osu!\\Songs",
-		"OsuSkinsDir": "C:\\Users\\shach\\AppData\\Local\\osu!\\Skins",
-		"OsuReplaysDir": "C:\\Users\\shach\\AppData\\Local\\osu!\\Replays",
+		"OsuSongsDir": "D:\\xGames\\osu!\\Songs",
+		"OsuSkinsDir": "D:\\xGames\\osu!\\Skins",
+		"OsuReplaysDir": "D:\\xGames\\osu!\\Replays",
 		"DiscordPresenceOn": true,
 		"UnpackOszFiles": true,
 		"VerboseImportLogs": false
 	},
 	"Graphics": {
 		"Width": 1920,
-		"Height": 1200,
-		"WindowWidth": 1440,
-		"WindowHeight": 900,
+		"Height": 1080,
+		"WindowWidth": 1920,
+		"WindowHeight": 1080,
 		"Fullscreen": true,
 		"VSync": false,
-		"FPSCap": 0,
+		"FPSCap": 1000,
 		"MSAA": 0,
-		"ShowFPS": true,
+		"ShowFPS": false,
 		"Experimental": {
 			"UsePersistentBuffers": false
 		}
@@ -28,9 +28,9 @@
 		"Offset": 0,
 		"OnlineOffset": false,
 		"HitsoundPositionMultiplier": 1,
-		"IgnoreBeatmapSamples": false,
+		"IgnoreBeatmapSamples": true,
 		"IgnoreBeatmapSampleVolume": false,
-		"PlayNightcoreSamples": true,
+		"PlayNightcoreSamples": false,
 		"BeatScale": 1.2,
 		"BeatUseTimingPoints": false,
 		"Linux/Unix": {
@@ -42,9 +42,9 @@
 	},
 	"Input": {
 		"LeftKey": "Z",
-		"RightKey": "X",
-		"RestartKey": "`",
-		"SmokeKey": "C",
+		"RightKey": "C",
+		"RestartKey": "X",
+		"SmokeKey": "B",
 		"ScreenshotKey": "F2",
 		"MouseButtonsDisabled": true,
 		"MouseHighPrecision": false,
@@ -52,7 +52,7 @@
 	},
 	"Gameplay": {
 		"HitErrorMeter": {
-			"Show": true,
+			"Show": false,
 			"Scale": 1,
 			"Opacity": 1,
 			"XOffset": 0,
@@ -89,7 +89,7 @@
 			"XOffset": 0,
 			"YOffset": 0,
 			"ProgressBar": "Pie",
-			"ShowGradeAlways": false,
+			"ShowGradeAlways": true,
 			"StaticScore": false,
 			"StaticAccuracy": false
 		},
@@ -126,7 +126,7 @@
 			"Static": false
 		},
 		"HitCounter": {
-			"Show": true,
+			"Show": false,
 			"Scale": 1,
 			"Opacity": 1,
 			"XPosition": 5,
@@ -165,7 +165,7 @@
 			"ShowSliderBreaks": false
 		},
 		"StrainGraph": {
-			"Show": true,
+			"Show": false,
 			"Opacity": 1,
 			"XPosition": 5,
 			"YPosition": 310,
@@ -197,7 +197,7 @@
 			"YOffset": 0
 		},
 		"ScoreBoard": {
-			"Show": true,
+			"Show": false,
 			"Scale": 1,
 			"Opacity": 1,
 			"XOffset": 0,
@@ -221,7 +221,7 @@
 			"AdditionalSpacing": 0
 		},
 		"Boundaries": {
-			"Enabled": true,
+			"Enabled": false,
 			"BorderThickness": 1,
 			"BorderFill": 1,
 			"BorderColor": {
@@ -250,18 +250,18 @@
 		"ShowWarningArrows": true,
 		"ShowHitLighting": false,
 		"FlashlightDim": 1,
-		"PlayUsername": "Guest",
+		"PlayUsername": "xQwake",
 		"IgnoreFailsInReplays": false,
 		"PPVersion": "latest",
 		"LazerClassicScore": false
 	},
 	"Skin": {
-		"CurrentSkin": "default",
-		"FallbackSkin": "default",
-		"UseColorsFromSkin": false,
+		"CurrentSkin": "scylla_Aristia3Edit colored version",
+		"FallbackSkin": "scylla_Aristia3Edit colored version",
+		"UseColorsFromSkin": true,
 		"UseBeatmapColors": false,
 		"Cursor": {
-			"UseSkinCursor": false,
+			"UseSkinCursor": true,
 			"Scale": 1,
 			"TrailScale": 1,
 			"ForceLongTrail": false,
@@ -274,7 +274,7 @@
 		"Style23Speed": 0.18,
 		"Style4Shift": 0.5,
 		"Colors": {
-			"EnableRainbow": true,
+			"EnableRainbow": false,
 			"RainbowSpeed": 8,
 			"BaseColor": {
 				"Hue": 0,
@@ -342,7 +342,7 @@
 			"MandalaTexturesTrigger": 5,
 			"MandalaTexturesAlpha": 0.3,
 			"Color": {
-				"EnableRainbow": true,
+				"EnableRainbow": false,
 				"RainbowSpeed": 8,
 				"BaseColor": {
 					"Hue": 0,
@@ -426,30 +426,30 @@
 			"Duration": 5
 		},
 		"Background": {
-			"LoadStoryboards": true,
+			"LoadStoryboards": false,
 			"LoadVideos": false,
 			"FlashToTheBeat": false,
 			"Dim": {
 				"Intro": 0,
 				"Normal": 0.95,
-				"Breaks": 0.5
+				"Breaks": 0.9
 			},
 			"Parallax": {
-				"Enabled": true,
+				"Enabled": false,
 				"Amount": 0.1,
 				"Speed": 0.5
 			},
 			"Blur": {
-				"Enabled": false,
+				"Enabled": true,
 				"Values": {
 					"Intro": 0,
-					"Normal": 0.6,
-					"Breaks": 0.3
+					"Normal": 0.1,
+					"Breaks": 0
 				}
 			},
 			"Triangles": {
 				"Enabled": false,
-				"Shadowed": true,
+				"Shadowed": false,
 				"DrawOverBlur": true,
 				"ParallaxMultiplier": 0.5,
 				"Density": 1,
@@ -458,7 +458,7 @@
 			}
 		},
 		"Logo": {
-			"Enabled": true,
+			"Enabled": false,
 			"DrawSpectrum": false,
 			"Dim": {
 				"Intro": 0,
@@ -580,11 +580,11 @@
 		"DanserName": "danser"
 	},
 	"Recording": {
-		"FrameWidth": 1920,
-		"FrameHeight": 1080,
+		"FrameWidth": 2560,
+		"FrameHeight": 1440,
 		"FPS": 60,
 		"EncodingFPSCap": 0,
-		"Encoder": "libx264",
+		"Encoder": "h264_nvenc",
 		"libx264": {
 			"RateControl": "crf",
 			"Bitrate": "10M",
@@ -612,16 +612,16 @@
 		"h264_nvenc": {
 			"RateControl": "cq",
 			"Bitrate": "10M",
-			"CQ": 22,
-			"Profile": "high",
-			"Preset": "p7",
+			"CQ": 30,
+			"Profile": "main",
+			"Preset": "p2",
 			"AdditionalOptions": ""
 		},
 		"hevc_nvenc": {
 			"RateControl": "cq",
 			"Bitrate": "10M",
-			"CQ": 24,
-			"Preset": "p7",
+			"CQ": 30,
+			"Preset": "p2",
 			"AdditionalOptions": ""
 		},
 		"av1_nvenc": {
@@ -697,7 +697,7 @@
 			"CustomOptions": ""
 		},
 		"AudioFilters": "",
-		"OutputDir": "videos",
+		"OutputDir": "D:\\727\\pipiska negra",
 		"Container": "mp4",
 		"ShowFFmpegLogs": true,
 		"MotionBlur": {
