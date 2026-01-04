@@ -9,6 +9,9 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using Velopack;
+using Velopack.Sources;
+
+VelopackApp.Build().Run();
 
 var cmdParserResult = Parser.Default
     .ParseArguments<CommandLineOptions>(args)
@@ -245,15 +248,20 @@ async Task CheckForUpdatesAsync()
     Log("Searching for updates...");
     try
     {
-        var mgr = new UpdateManager("https://the.place/you-host/updates");
+        var mgr = new UpdateManager(
+            new GithubSource(
+                repoUrl: "https://github.com/Shoukox/ClientRenderer.git",
+                accessToken: null,
+                false));
 
         var newVersion = await mgr.CheckForUpdatesAsync();
         if (newVersion == null)
             return;
 
+        Log($"Found new update: {newVersion.TargetFullRelease.Version}");
         await mgr.DownloadUpdatesAsync(newVersion);
-
-        mgr.ApplyUpdatesAndRestart(newVersion);
+        Log($"Update downloaded, restarting...");
+        mgr.ApplyUpdatesAndRestart(newVersion, args);
     }
     catch (Exception ex)
     {
