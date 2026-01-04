@@ -5,3 +5,5 @@ riderModule.iml
 /_ReSharper.Caches/
 /.vs/ClientRenderer
 renderer-settings.json
+.idea
+.vs
