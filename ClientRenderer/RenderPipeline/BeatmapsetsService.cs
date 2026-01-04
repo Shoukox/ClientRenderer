@@ -15,10 +15,10 @@ public class BeatmapsetsService
     {
         var downloadResult = await DownloadBeatmapViaSyui(beatmapsetId);
 
-        if (!downloadResult.Success)
-        {
-            downloadResult = await DownloadBeatmapViaOsu(beatmapsetId);
-        }
+        //if (!downloadResult.Success)
+        //{
+        //    downloadResult = await DownloadBeatmapViaOsu(beatmapsetId);
+        //}
 
         if (!downloadResult.Success)
         {
@@ -28,6 +28,11 @@ public class BeatmapsetsService
         return downloadResult;
     }
 
+    /// <summary>
+    /// NEEDS OSU_SESSION COOKIE
+    /// </summary>
+    /// <param name="beatmapsetId"></param>
+    /// <returns></returns>
     private async Task<Result<Stream>> DownloadBeatmapViaOsu(int beatmapsetId)
     {
         try
@@ -76,7 +81,7 @@ public class BeatmapsetsService
         }
     }
 
-    public async Task<int> GetBeatmapsetId(string beatmapMd5Hash, Source source = Source.Syui)
+    public async Task<int?> GetBeatmapsetId(string beatmapMd5Hash, Source source = Source.Syui)
     {
         if (source == Source.Osu)
         {
@@ -95,10 +100,7 @@ public class BeatmapsetsService
         var httpResponse = await HttpClient.SendAsync(httpRequest).ConfigureAwait(false);
         if (!httpResponse.IsSuccessStatusCode)
         {
-            if (httpResponse.StatusCode == HttpStatusCode.NotFound) throw new HttpRequestException(HttpRequestError.HttpProtocolError);
-
-            throw new HttpRequestException(
-                $"Request failed with status code {(int)httpResponse.StatusCode} ({httpResponse.StatusCode}).");
+            return null;
         }
 
         string json = await httpResponse.Content.ReadAsStringAsync();

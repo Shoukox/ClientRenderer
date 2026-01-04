@@ -12,6 +12,7 @@ using Velopack;
 using Velopack.Sources;
 
 VelopackApp.Build().Run();
+await CheckForUpdatesAsync();
 
 var cmdParserResult = Parser.Default
     .ParseArguments<CommandLineOptions>(args)
@@ -19,7 +20,7 @@ var cmdParserResult = Parser.Default
     {
         if (o.ServerUrl != null)
         {
-            Console.WriteLine($"Using the following server: {o.ServerUrl}");
+            Log($"Using the following server: {o.ServerUrl}");
         }
     });
 if (cmdParserResult.Tag == ParserResultType.NotParsed)
@@ -28,16 +29,10 @@ if (cmdParserResult.Tag == ParserResultType.NotParsed)
     return;
 }
 
-await CheckForUpdatesAsync();
-
 string url = cmdParserResult.Value.ServerUrl!;
 Uri serverUri = new Uri(url);
 
-string chosenEncoder = "h264_nvenc"; // default nvenc
-if (args.Length == 4 && args[3] is "libx264")
-{
-    chosenEncoder = args[3];
-}
+string chosenEncoder = cmdParserResult.Value.Encoder;
 
 DanserGo.AdjustDanserGoPath(Environment.OSVersion);
 if (!DanserGo.DanserExists())
@@ -45,7 +40,7 @@ if (!DanserGo.DanserExists())
     Log("Danser-go does not exist!");
     return;
 }
-DanserGo.AdjustConfig(chosenEncoder);
+
 Log($"{chosenEncoder} has been set as a default danser encoder.");
 DanserGo.CreateDirectoriesIfNeeded();
 
@@ -105,14 +100,16 @@ while (!cancellationToken.IsCancellationRequested)
         if (!ReplaysService.BeatmapExists(beatmapHash))
         {
             Log($"[JobId:{renderJob!.JobId}] The requested beatmap does not exist!");
-            // todo:
-            // use official osu website
-            // curl -G -H "Cookie: osu_session=sessionid" -H "Referer: https://osu.ppy.sh/beatmapsets/<beatmapsetid>" https://osu.ppy.sh/beatmapsets/<beatmapsetid>/download
-            // get beatmapsetId from a hash using osu!api v1 get_beatmaps
-            int beatmapsetId = await beatmapsetsService.GetBeatmapsetId(beatmapHash);
+            int? beatmapsetId = await beatmapsetsService.GetBeatmapsetId(beatmapHash);
+            if (beatmapsetId == null)
+            {
+                await serverConnection.Failure(renderJob.JobId, "Beatmapset doesn't exist", false);
+                Log($"[JobId:{renderJob!.JobId}] The given beatmapset doesn't exist on syui beatmap mirror");
+                continue;
+            }
             Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset {beatmapsetId}...");
 
-            var downloadResult = await beatmapsetsService.DownloadBeatmapset(beatmapsetId);
+            var downloadResult = await beatmapsetsService.DownloadBeatmapset(beatmapsetId.Value);
             if (!downloadResult.Success)
             {
                 await serverConnection.Failure(renderJob.JobId, "beatmapset_download_failed", false);
@@ -139,11 +136,12 @@ while (!cancellationToken.IsCancellationRequested)
         await File.WriteAllBytesAsync(replayPath, replay, cancellationToken);
 
         // Download skin if needed
-        string skinName = renderJob.RenderSkin.Substring(0, renderJob.RenderSkin.Length - 4);
-        DanserGo.AdjustConfig(chosenEncoder, skinName);
-        if (renderJob.RenderSkin != "default")
+        renderJob.RenderSettings.Encoder = chosenEncoder;
+        DanserGo.AdjustConfig(renderJob.RenderSettings);
+        if (renderJob.RenderSettings.SkinName != "default")
         {
-            string skinNameHex = Convert.ToHexString(Encoding.ASCII.GetBytes(renderJob.RenderSkin)) + ".osk";
+            string skinName = renderJob.RenderSettings.SkinName.Substring(0, renderJob.RenderSettings.SkinName.Length - 4);
+            string skinNameHex = Convert.ToHexString(Encoding.ASCII.GetBytes(renderJob.RenderSettings.SkinName)) + ".osk";
             string skinDirectory = Path.Combine(DanserGo.DanserGoDirectoryPath, "skins", skinName);
             if (!Directory.Exists(skinDirectory))
             {
@@ -154,13 +152,14 @@ while (!cancellationToken.IsCancellationRequested)
 
 
         // Render using danser-go
-        DanserResult result;
+        DanserGo.DanserResult result;
         ConcurrentDictionary<string, string> renderUpdates = new();
         try
         {
-            Task<DanserResult> renderTask = new DanserGo()
-                .ExecuteAsync($"-r \"{replayPath}\" " +
-                              $"-out \"{beatmapHash}\"", renderUpdates);
+            string arguments = $"-r \"{replayPath}\" " +
+                              $"-out \"{beatmapHash}\"";
+            Task<DanserGo.DanserResult> renderTask = new DanserGo()
+                .ExecuteAsync(arguments, renderUpdates);
 
             while (renderTask.IsCompleted == false && !cancellationToken.IsCancellationRequested)
             {
@@ -250,7 +249,7 @@ async Task CheckForUpdatesAsync()
     {
         var mgr = new UpdateManager(
             new GithubSource(
-                repoUrl: "https://github.com/Shoukox/ClientRenderer.git",
+                repoUrl: "https://github.com/Shoukox/ClientRenderer",
                 accessToken: null,
                 false));
 

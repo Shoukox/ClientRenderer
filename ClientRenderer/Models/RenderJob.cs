@@ -1,4 +1,6 @@
-﻿namespace ClientRenderer.Models
+﻿using static DanserWrapper.DanserGo;
+
+namespace ClientRenderer.Models
 {
     public record RenderJob
     {
@@ -13,7 +15,7 @@
         public double ProgressPercent { get; set; } = 0; // 0.00 ... 1.00
         public bool IsComplete { get; set; } = false;
         public bool IsSuccess { get; set; } = false;
-        public string RenderSkin { get; set; } = "default";
         public string FailureReason { get; set; } = "";
+        public DanserConfiguration RenderSettings { get; set; }
     }
 }
