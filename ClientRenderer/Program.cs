@@ -129,28 +129,31 @@ while (!cancellationToken.IsCancellationRequested)
         {
             Log($"[JobId:{renderJob!.JobId}] Beatmap exists locally, proceeding to render...");
         }
-
-        Log($"[JobId:{renderJob!.JobId}] Start rendering");
-
         string replayPath = Path.GetFullPath(beatmapHash + ".osr");
         await File.WriteAllBytesAsync(replayPath, replay, cancellationToken);
 
+
         // Download skin if needed
         renderJob.RenderSettings.Encoder = chosenEncoder;
-        DanserGo.AdjustConfig(renderJob.RenderSettings);
-        if (renderJob.RenderSettings.SkinName != "default")
+        if (renderJob.RenderSettings.SkinName.EndsWith(".osk"))
         {
-            string skinName = renderJob.RenderSettings.SkinName.Substring(0, renderJob.RenderSettings.SkinName.Length - 4);
-            string skinNameHex = Convert.ToHexString(Encoding.ASCII.GetBytes(renderJob.RenderSettings.SkinName)) + ".osk";
-            string skinDirectory = Path.Combine(DanserGo.DanserGoDirectoryPath, "skins", skinName);
+            string skinNameNoOsk = renderJob.RenderSettings.SkinName[..^4];
+            string skinDirectory = Path.Combine(DanserGo.DanserGoDirectoryPath, "skins", skinNameNoOsk);
             if (!Directory.Exists(skinDirectory))
             {
+                string skinNameHex = Convert.ToHexString(Encoding.ASCII.GetBytes(renderJob.RenderSettings.SkinName)) + ".osk";
+                Log($"[JobId:{renderJob!.JobId}] Skin: {renderJob.RenderSettings.SkinName}. Downloading a skin...");
                 Stream skinAsStream = new MemoryStream(await serverConnection.DownloadSkin(skinNameHex));
                 ZipFile.ExtractToDirectory(skinAsStream, skinDirectory);
             }
+            else
+            {
+                Log($"[JobId:{renderJob!.JobId}] Skin: {renderJob.RenderSettings.SkinName}. Already exists.");
+            }
+            renderJob.RenderSettings.SkinName = skinNameNoOsk;
         }
-
-
+        DanserGo.AdjustConfig(renderJob.RenderSettings);
+        Log($"[JobId:{renderJob!.JobId}] Start rendering");
         // Render using danser-go
         DanserGo.DanserResult result;
         ConcurrentDictionary<string, string> renderUpdates = new();
