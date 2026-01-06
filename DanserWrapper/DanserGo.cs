@@ -103,8 +103,8 @@ public class DanserGo
 
         json["Recording"]["Encoder"] = configuration.Encoder;
         json["Recording"]["AudioCodec"] = "aac";
-        json["Recording"]["FrameWidth"] = 1280;
-        json["Recording"]["FrameHeight"] = 720;
+        json["Recording"]["FrameWidth"] = configuration.VideoWidth;
+        json["Recording"]["FrameHeight"] = configuration.VideoHeight;
         json["Recording"]["FPS"] = 60;
         json["Recording"]["OutputDir"] = "videos";
         json["Recording"]["libx264"]["CRF"] = 20;
@@ -165,6 +165,8 @@ public class DanserGo
 
     public record DanserConfiguration
     {
+        public int VideoWidth { get; set; } = 1280;
+        public int VideoHeight{ get; set; } = 720;
         public string Encoder { get; set; } = "h264_nvenc";
         public string SkinName { get; set; } = "default";
         public double GeneralVolume { get; set; } = 0.5;
