@@ -1,8 +1,12 @@
 ﻿using ClientRenderer.Models;
+using SharpCompress.Common;
+using System;
 using System.Globalization;
+using System.IO;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace ClientRenderer.Connection
 {
@@ -177,26 +181,63 @@ namespace ClientRenderer.Connection
             response.EnsureSuccessStatusCode();
         }
 
-        public async Task PostVideoAsync(string videoPath, int jobId)
+        public async Task PostVideo(string videoPath, int jobId, int chunkSizeBytes = 50 * 1024 * 1024)
         {
-            using HttpRequestMessage hrm = new HttpRequestMessage();
+            var fileInfo = new FileInfo(videoPath);
+            long fileSize = fileInfo.Length;
+            int totalChunks = (int)Math.Ceiling((double)fileSize / chunkSizeBytes);
 
             await using var fileStream = new FileStream(videoPath, FileMode.Open, FileAccess.Read);
-            var multipart = new MultipartFormDataContent()
+
+            for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
             {
-                { new StreamContent(fileStream), "file", "video.mp4"}
+                long offset = (long)chunkIndex * chunkSizeBytes;
+                int currentChunkSize = (int)Math.Min(chunkSizeBytes, fileSize - offset);
+                byte[] buffer = new byte[currentChunkSize];
+
+                fileStream.Seek(offset, SeekOrigin.Begin);
+                int read = await fileStream.ReadAsync(buffer, 0, currentChunkSize);
+
+                using var multipart = new MultipartFormDataContent
+                {
+                    { new ByteArrayContent(buffer, 0, read), "file", $"video.part{chunkIndex}.mp4" }
+                };
+
+                using var hrm = new HttpRequestMessage();
+                hrm.Content = multipart;
+                hrm.Method = HttpMethod.Post;
+                hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/upload-replay-videofile?job-id={jobId}&chunk-index={chunkIndex}&total-chunks={totalChunks}");
+                hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+
+                using var response = await _httpClient.SendAsync(hrm);
+                response.EnsureSuccessStatusCode();
+
+                Log($"Uploaded chunk {chunkIndex + 1}/{totalChunks}");
+            }
+        }
+
+        public async Task PostImage(string screenshotPath, int jobId)
+        {
+            using var hrm = new HttpRequestMessage();
+            
+            await using var fileStream = new FileStream(screenshotPath, FileMode.Open, FileAccess.Read);
+            using var multipart = new MultipartFormDataContent
+            {
+                { new StreamContent(fileStream), "file", $"image.png" }
             };
+
             hrm.Content = multipart;
             hrm.Method = HttpMethod.Post;
-            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/upload-replay-videofile?job-id={jobId}");
+            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"images/upload-image?job-id={jobId}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+
             using var response = await _httpClient.SendAsync(hrm);
             response.EnsureSuccessStatusCode();
         }
 
         private void Log(string message)
         {
-            Console.WriteLine($"\x1b[32m[{DateTime.Now:u}]\x1b[31m[Server] \x1b[36m{message}\x1b[0m");
+            Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\x1b[31m[Server] \x1b[36m{message}\x1b[0m");
         }
 
         internal class ClientCredentialsGrantRequest

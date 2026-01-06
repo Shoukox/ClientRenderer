@@ -11,6 +11,7 @@ public class DanserGo
     public static string DanserGoPath = Path.Combine(AppContext.BaseDirectory, "danser", "danser-cli");
     public readonly static string DanserGoDirectoryPath = Path.GetDirectoryName(DanserGoPath)!;
     public readonly static string VideosPath = Path.Combine(DanserGoDirectoryPath, "videos");
+    public readonly static string ScreenshotsPath = Path.Combine(DanserGoDirectoryPath, "screenshots");
     public readonly static string SongsPath = Path.Combine(DanserGoDirectoryPath, "songs");
 
     public DanserGo()
@@ -122,6 +123,7 @@ public class DanserGo
         json["Gameplay"]["AimErrorMeter"]["Show"] = configuration.AimErrorMeter;
         json["Gameplay"]["HpBar"]["Show"] = configuration.HPBar;
         json["Gameplay"]["PPCounter"]["Show"] = configuration.ShowPP;
+        json["Gameplay"]["PPCounter"]["ShowInResults"] = false; // for fetching the result screen 
         json["Gameplay"]["HitCounter"]["Show"] = configuration.HitCounter;
         json["Gameplay"]["KeyOverlay"]["Show"] = configuration.KeyOverlay;
         json["Gameplay"]["Mods"]["Show"] = configuration.KeyOverlay;
