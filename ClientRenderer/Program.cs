@@ -31,6 +31,31 @@ if (cmdParserResult.Tag == ParserResultType.NotParsed)
     return;
 }
 
+string cookieFile = "cookie.txt";
+if (!File.Exists(cookieFile))
+{
+    Log($"Error. Specify your osu_session cookie at {Path.Combine(AppContext.BaseDirectory, cookieFile)}");
+    Console.ReadKey();
+}
+else
+{
+    Log($"Checking your osu_session cookie...");
+    using var httpClient = new HttpClient();
+    using var request = new HttpRequestMessage(HttpMethod.Head, "https://osu.ppy.sh/beatmapsets/41823/download");
+    request.Headers.Add("Cookie", $"osu_session={File.ReadAllText(cookieFile)}");
+    request.Headers.Referrer = new Uri("https://osu.ppy.sh/beatmapsets/41823/download");
+    var response = await httpClient.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+    {
+        Log($"Error. Renew your token. You can try to log out and log in into your osu! profile on website.");
+        Console.ReadKey();
+        return;
+    }
+    Log($"Your osu_session cookie is OK.");
+}
+
+string osuSessionCookie = File.ReadAllText(cookieFile);
+
 string url = cmdParserResult.Value.ServerUrl!;
 Uri serverUri = new Uri(url);
 
@@ -124,20 +149,14 @@ async Task<(string replayPath, string beatmapHash, bool shouldReturn)> DownloadB
     Log($"[JobId:{renderJob!.JobId}] Downloading a beatmap...");
     var beatmapHash = decodedReplay.BeatmapMD5Hash;
     bool shouldReturn = false;
+
+    ReplaysService.LoadAllBeatmapsHashes();
     if (!ReplaysService.BeatmapExists(beatmapHash))
     {
         Log($"[JobId:{renderJob!.JobId}] The requested beatmap does not exist!");
-        int? beatmapsetId = await beatmapsetsService.GetBeatmapsetId(beatmapHash);
-        if (beatmapsetId == null)
-        {
-            await serverConnection.Failure(renderJob.JobId, "Beatmapset doesn't exist", false);
-            Log($"[JobId:{renderJob!.JobId}] The given beatmapset doesn't exist on syui beatmap mirror");
-            shouldReturn = true;
-            return (string.Empty, beatmapHash, true);
-        }
-        Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset {beatmapsetId}...");
+        Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset...");
 
-        var downloadResult = await beatmapsetsService.DownloadBeatmapset(beatmapsetId.Value);
+        var downloadResult = await beatmapsetsService.DownloadBeatmapset(beatmapHash);
         if (!downloadResult.Success)
         {
             await serverConnection.Failure(renderJob.JobId, "beatmapset_download_failed", false);
@@ -146,12 +165,31 @@ async Task<(string replayPath, string beatmapHash, bool shouldReturn)> DownloadB
             shouldReturn = true;
             return (string.Empty, beatmapHash, true);
         }
+        string oszPath = Path.Combine(DanserGo.SongsPath, $"{beatmapHash}.osz");
+        using (var oszStream = downloadResult.Output!)
+        {
+            ZipFile.ExtractToDirectory(oszStream, oszPath);
+        }
 
-        Stream oszStream = downloadResult.Output!;
-        using var fileStream = File.OpenWrite(Path.Combine(DanserGo.SongsPath, $"{beatmapHash}.osz"));
-
-        await oszStream.CopyToAsync(fileStream, cancellationToken);
         ReplaysService.LoadAllBeatmapsHashes();
+        if (!ReplaysService.BeatmapExists(beatmapHash))
+        {
+            Directory.Delete(oszPath, true);
+            Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset via osu");
+            downloadResult = await beatmapsetsService.DownloadBeatmapViaOsu(beatmapsetsService.LastBeatmapId, osuSessionCookie);
+            if (!downloadResult.Success)
+            {
+                await serverConnection.Failure(renderJob.JobId, "beatmapset_download_via_osu_failed", false);
+                Log($"[JobId:{renderJob!.JobId}] Failed to download a beatmapset!");
+                Log($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
+                return (string.Empty, beatmapHash, true);
+            }
+
+            using (var oszStream = downloadResult.Output!)
+            {
+                ZipFile.ExtractToDirectory(oszStream, oszPath);
+            }
+        }
         Log($"[JobId:{renderJob!.JobId}] Sucessfully downloaded beatmapset! (.osz)");
     }
     else
@@ -210,7 +248,8 @@ async Task RenderVideo()
     try
     {
         string arguments = $"-r \"{replayPath}\" " +
-                          $"-out \"{beatmapHash}\"";
+                          $"-out \"{beatmapHash}\" " +
+                          $"-preciseprogress";
         Task<DanserGo.DanserResult> renderTask = new DanserGo()
             .ExecuteAsync(arguments, renderUpdates);
 
