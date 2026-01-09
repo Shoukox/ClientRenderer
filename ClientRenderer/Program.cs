@@ -36,6 +36,7 @@ if (!File.Exists(cookieFile))
 {
     Log($"Error. Specify your osu_session cookie at {Path.Combine(AppContext.BaseDirectory, cookieFile)}");
     Console.ReadKey();
+    return;
 }
 else
 {
