@@ -5,7 +5,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-		<Version>0.9.8</Version>
+		<Version>0.9.9</Version>
 		<PackageIcon>icon.png</PackageIcon>
 		<ApplicationIcon>icon.ico</ApplicationIcon>
     </PropertyGroup>
@@ -29,9 +29,6 @@
       <None Update="icon.png">
         <Pack>True</Pack>
         <PackagePath>\</PackagePath>
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="renderer-settings.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>

@@ -158,29 +158,25 @@ async Task<(string replayPath, string beatmapHash, bool shouldReturn)> DownloadB
         Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset...");
 
         var downloadResult = await beatmapsetsService.DownloadBeatmapset(beatmapHash);
-        if (!downloadResult.Success)
-        {
-            await serverConnection.Failure(renderJob.JobId, "beatmapset_download_failed", false);
-            Log($"[JobId:{renderJob!.JobId}] Failed to download a beatmapset!");
-            Log(downloadResult.Exception!.ToString());
-            shouldReturn = true;
-            return (string.Empty, beatmapHash, true);
-        }
         string oszPath = Path.Combine(DanserGo.SongsPath, $"{beatmapHash}.osz");
-        using (var oszStream = downloadResult.Output!)
+        if (downloadResult.Success)
         {
-            ZipFile.ExtractToDirectory(oszStream, oszPath);
+            using (var oszStream = downloadResult.Output!)
+            {
+                ZipFile.ExtractToDirectory(oszStream, oszPath);
+            }
         }
+     
 
         ReplaysService.LoadAllBeatmapsHashes();
-        if (!ReplaysService.BeatmapExists(beatmapHash))
+        if (!ReplaysService.BeatmapExists(beatmapHash) || !downloadResult.Success)
         {
             Directory.Delete(oszPath, true);
             Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset via osu");
             downloadResult = await beatmapsetsService.DownloadBeatmapViaOsu(beatmapsetsService.LastBeatmapId, osuSessionCookie);
             if (!downloadResult.Success)
             {
-                await serverConnection.Failure(renderJob.JobId, "beatmapset_download_via_osu_failed", false);
+                await serverConnection.Failure(renderJob.JobId, "beatmapset_download_failed", false);
                 Log($"[JobId:{renderJob!.JobId}] Failed to download a beatmapset!");
                 Log($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
                 return (string.Empty, beatmapHash, true);

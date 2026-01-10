@@ -6,7 +6,7 @@ namespace ClientRenderer.Render;
 
 public class BeatmapsetsService
 {
-    private static HttpClient HttpClient { get; } = new();
+    private static HttpClient HttpClient { get; } = new() { Timeout = TimeSpan.FromSeconds(10) };
 
     private const string BaseUrlMino = "https://catboy.best/";
     private const string BaseUrlSyui = "https://syui.eternityglow.de/";
@@ -56,7 +56,7 @@ public class BeatmapsetsService
             SimulateBrowser(request);
             request.Headers.Add("Cookie", $"osu_session={osuSessionCookie}");
             request.Headers.Referrer = new Uri(BaseUrlOsu + $"{beatmapsetId}");
-            var response = await HttpClient.SendAsync(request);
+            var response = await HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
             return Result<Stream>.FromSuccess(await response.Content.ReadAsStreamAsync());
         }
@@ -71,7 +71,8 @@ public class BeatmapsetsService
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, BaseUrlSyui + $"d/{beatmapsetId}");
-            var response = await HttpClient.SendAsync(request);
+            SimulateBrowser(request);
+            var response = await HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
             return Result<Stream>.FromSuccess(await response.Content.ReadAsStreamAsync());
         }
@@ -84,7 +85,7 @@ public class BeatmapsetsService
     private async Task<Result<Stream>> DownloadBeatmapViaSyui(string beatmapMd5Hash)
     {
         Result<int> beatmapId = await GetBeatmapsetIdViaSyui(beatmapMd5Hash);
-        if (!beatmapId.Success) return Result<Stream>.FromFailure(new HttpRequestException());
+        if (!beatmapId.Success) return Result<Stream>.FromFailure(beatmapId.Exception!);
         LastBeatmapId = beatmapId.Output;
         return await DownloadBeatmapViaSyui(beatmapId.Output);
     }
@@ -94,7 +95,8 @@ public class BeatmapsetsService
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, BaseUrlMino + $"d/{beatmapsetId}");
-            var response = await HttpClient.SendAsync(request);
+            SimulateBrowser(request);
+            var response = await HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
             return Result<Stream>.FromSuccess(await response.Content.ReadAsStreamAsync());
         }
@@ -107,39 +109,45 @@ public class BeatmapsetsService
     private async Task<Result<Stream>> DownloadBeatmapViaMino(string beatmapMd5Hash)
     {
         Result<int> beatmapId = await GetBeatmapsetIdViaMino(beatmapMd5Hash);
-        if (!beatmapId.Success) return Result<Stream>.FromFailure(new HttpRequestException());
+        if (!beatmapId.Success) return Result<Stream>.FromFailure(beatmapId.Exception!);
         LastBeatmapId = beatmapId.Output;
         return await DownloadBeatmapViaMino(beatmapId.Output);
     }
 
     private async Task<Result<int>> GetBeatmapsetIdViaSyui(string beatmapMd5Hash)
     {
-        string location = BaseUrlSyui + $"api/md5/{beatmapMd5Hash}";
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, location);
-        SimulateBrowser(httpRequest);
-        var httpResponse = await HttpClient.SendAsync(httpRequest).ConfigureAwait(false);
-
-        if (!httpResponse.IsSuccessStatusCode)
+        try
         {
-            return Result<int>.FromFailure(new HttpRequestException(httpResponse.ReasonPhrase));
+            string location = BaseUrlSyui + $"api/md5/{beatmapMd5Hash}";
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, location);
+            SimulateBrowser(httpRequest);
+            var httpResponse = await HttpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
+            httpResponse.EnsureSuccessStatusCode();
+            var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
+            return Result<int>.FromSuccess((int)json!.ParentSetID);
         }
-        var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
-        return Result<int>.FromSuccess((int)json!.ParentSetID);
+        catch (Exception ex)
+        {
+            return Result<int>.FromFailure(ex);
+        }
     }
 
     private async Task<Result<int>> GetBeatmapsetIdViaMino(string beatmapMd5Hash)
     {
-        string location = BaseUrlMino + $"api/v2/md5/{beatmapMd5Hash}";
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, location);
-        SimulateBrowser(httpRequest);
-        var httpResponse = await HttpClient.SendAsync(httpRequest).ConfigureAwait(false);
-
-        if (!httpResponse.IsSuccessStatusCode)
+        try
         {
-            return Result<int>.FromFailure(new HttpRequestException(httpResponse.ReasonPhrase));
+            string location = BaseUrlMino + $"api/v2/md5/{beatmapMd5Hash}";
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, location);
+            SimulateBrowser(httpRequest);
+            var httpResponse = await HttpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
+            httpResponse.EnsureSuccessStatusCode();
+            var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
+            return Result<int>.FromSuccess((int)json!.beatmapset_id);
         }
-        var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
-        return Result<int>.FromSuccess((int)json!.beatmapset_id);
+        catch (Exception ex)
+        {
+            return Result<int>.FromFailure(ex);
+        }
     }
 
     private void SimulateBrowser(HttpRequestMessage httpRequest)
