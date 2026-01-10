@@ -204,7 +204,7 @@ async Task DownloadSkin()
     renderJob.RenderSettings.Encoder = chosenEncoder;
     if (renderJob.RenderSettings.SkinName.EndsWith(".osk"))
     {
-        string skinNameNoOsk = renderJob.RenderSettings.SkinName[..^4];
+        string skinNameNoOsk = renderJob.RenderSettings.SkinName[..^4].GetHashCode().ToString();
         string skinDirectory = Path.Combine(DanserGo.DanserGoDirectoryPath, "skins", skinNameNoOsk);
         if (!Directory.Exists(skinDirectory))
         {
@@ -253,7 +253,7 @@ async Task RenderVideo()
         while (renderTask.IsCompleted == false && !cancellationToken.IsCancellationRequested)
         {
             if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
-                double.TryParse(progressString, out double progress))
+                double.TryParse(progressString, out double progress) && progress != 0)
             {
                 await serverConnection.ReportRenderingProgress(renderJob!.JobId, progress);
                 Log($"[JobId:{renderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
