@@ -126,7 +126,7 @@ public class DanserGo
         json["Gameplay"]["PPCounter"]["ShowInResults"] = false; // for fetching the result screen 
         json["Gameplay"]["HitCounter"]["Show"] = configuration.HitCounter;
         json["Gameplay"]["KeyOverlay"]["Show"] = configuration.KeyOverlay;
-        json["Gameplay"]["Mods"]["Show"] = configuration.KeyOverlay;
+        json["Gameplay"]["Mods"]["Show"] = configuration.Mods;
         json["Gameplay"]["ComboCounter"]["Show"] = configuration.Combo;
         json["Gameplay"]["ScoreBoard"]["Show"] = configuration.Leaderboard;
         json["Gameplay"]["ScoreBoard"]["ModsOnly"] = false;
