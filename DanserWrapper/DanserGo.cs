@@ -128,6 +128,10 @@ public class DanserGo
         json["Gameplay"]["KeyOverlay"]["Show"] = configuration.KeyOverlay;
         json["Gameplay"]["Mods"]["Show"] = configuration.KeyOverlay;
         json["Gameplay"]["ComboCounter"]["Show"] = configuration.Combo;
+        json["Gameplay"]["ScoreBoard"]["Show"] = configuration.Leaderboard;
+        json["Gameplay"]["ScoreBoard"]["ModsOnly"] = false;
+        json["Gameplay"]["StrainGraph"]["Show"] = configuration.StrainGraph;
+        json["Gameplay"]["StrainGraph"]["Outline"]["Show"] = true;
 
         json["Playfield"]["Background"]["LoadStoryboards"] = configuration.Video;
         json["Playfield"]["Background"]["LoadVideos"] = configuration.Storyboard;
@@ -185,5 +189,7 @@ public class DanserGo
         public bool Mods { get; set; } = true;
         public bool KeyOverlay { get; set; } = true;
         public bool Combo { get; set; } = true;
+        public bool Leaderboard { get; set; } = false;
+        public bool StrainGraph { get; set; } = true;
     }
 }
