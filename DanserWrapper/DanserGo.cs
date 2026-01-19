@@ -1,8 +1,8 @@
-﻿using Newtonsoft.Json;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 
 namespace DanserWrapper;
 
@@ -48,10 +48,11 @@ public class DanserGo
                 return;
             outputStringBuilder.AppendLine(e.Data);
 
-            var match = progressRegex.Match(e.Data);
-            if (match.Success)
+            // Match progress
+            var matchProgress = progressRegex.Match(e.Data);
+            if (matchProgress.Success)
             {
-                var progress = double.Parse(match.Groups[1].Value);
+                var progress = double.Parse(matchProgress.Groups[1].Value);
                 renderUpdates["Progress"] = $"{progress / 100}";
             }
         };
@@ -111,6 +112,7 @@ public class DanserGo
         json["Recording"]["libx264"]["CRF"] = 20;
         json["Recording"]["h264_nvenc"]["CQ"] = 30;
 
+        json["Recording"]["MotionBlur"]["Enabled"] = configuration.MotionBlur;
 
         json["Skin"]["CurrentSkin"] = configuration.SkinName;
         json["Skin"]["FallbackSkin"] = "default";
@@ -135,7 +137,24 @@ public class DanserGo
 
         json["Playfield"]["Background"]["LoadStoryboards"] = configuration.Video;
         json["Playfield"]["Background"]["LoadVideos"] = configuration.Storyboard;
+        json["Playfield"]["Background"]["Dim"]["Intro"] = 0;
+        json["Playfield"]["Background"]["Dim"]["Normal"] = configuration.BackgroundDim;
+        json["Playfield"]["Background"]["Dim"]["Breaks"] = configuration.BackgroundDim * 0.8;
+        json["Playfield"]["SeizureWarning"]["Enabled"] = false;
 
+
+        File.WriteAllText(configPath, JsonConvert.SerializeObject(json, Formatting.Indented));
+    }
+
+    public static void AdjustOsuApiCredentials(int clientId, string clientSecret)
+    {
+        string configPath = Path.Combine(DanserGoDirectoryPath, "settings", "credentials.json");
+        var json = JsonConvert.DeserializeObject<dynamic>(File.ReadAllText(configPath))!;
+
+        json["ClientId"] = $"{clientId}";
+        json["ClientSecret"] = clientSecret;
+        json["AccessToken"] = string.Empty;
+        json["RefreshToken"] = string.Empty;
 
         File.WriteAllText(configPath, JsonConvert.SerializeObject(json, Formatting.Indented));
     }
@@ -172,17 +191,18 @@ public class DanserGo
     public record DanserConfiguration
     {
         public int VideoWidth { get; set; } = 1280;
-        public int VideoHeight{ get; set; } = 720;
+        public int VideoHeight { get; set; } = 720;
         public string Encoder { get; set; } = "h264_nvenc";
         public string SkinName { get; set; } = "default";
         public double GeneralVolume { get; set; } = 0.5;
         public double MusicVolume { get; set; } = 0.5;
         public double SampleVolume { get; set; } = 0.5;
-        public bool HitErrorMeter { get; set; } = false;
+        public double BackgroundDim { get; set; } = 0.95;
+        public bool HitErrorMeter { get; set; } = true;
         public bool AimErrorMeter { get; set; } = false;
         public bool HPBar { get; set; } = true;
-        public bool ShowPP { get; set; } = false;
-        public bool HitCounter { get; set; } = false;
+        public bool ShowPP { get; set; } = true;
+        public bool HitCounter { get; set; } = true;
         public bool IgnoreFailsInReplays { get; set; } = false;
         public bool Video { get; set; } = false;
         public bool Storyboard { get; set; } = false;
@@ -191,5 +211,6 @@ public class DanserGo
         public bool Combo { get; set; } = true;
         public bool Leaderboard { get; set; } = false;
         public bool StrainGraph { get; set; } = true;
+        public bool MotionBlur { get; set; } = false;
     }
 }

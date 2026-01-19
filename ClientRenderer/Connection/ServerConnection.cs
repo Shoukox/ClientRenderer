@@ -46,7 +46,7 @@ namespace ClientRenderer.Connection
             {
                 using var response = await _httpClient.SendAsync(hrm);
                 _lastClientCredentialsGrantResponse = await response.Content.ReadFromJsonAsync<ClientCredentialsGrantResponse>();
-                _nextTokenRefreshTime = DateTime.Now.AddSeconds(_lastClientCredentialsGrantResponse!.ExpiresIn * 0.9); // 90% of the token lifetime
+                _nextTokenRefreshTime = DateTime.Now.AddMinutes(_lastClientCredentialsGrantResponse!.ExpiresIn * 0.9); // 90% of the token lifetime
                 return true;
             }
             catch
@@ -68,7 +68,7 @@ namespace ClientRenderer.Connection
                     }
                     if (_nextTokenRefreshTime - DateTime.Now <= TimeSpan.Zero)
                     {
-                        Log("Reinitializing an access token");
+                        // Log("Reinitializing an access token");
                         while (!await InitializeToken())
                         {
                             Log("Error while reinitializing an access token. Retrying...");
@@ -82,17 +82,17 @@ namespace ClientRenderer.Connection
                     using var response = await _httpClient.SendAsync(hrm);
                     response.EnsureSuccessStatusCode();
 
-                    Log("Heartbeat was sent.");
+                    // Log("Heartbeat was sent.");
                     await Task.Delay(heartbeatIntervalMs);
                 }
                 catch (HttpRequestException)
                 {
-                    Log("Error while doing a request. Retrying in 10 seconds...");
+                    LogError("Error while doing a request. Retrying in 10 seconds...");
                     await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken); // wait before retrying on HTTP errors
                 }
                 catch (Exception ex)
                 {
-                    Log(ex.ToString());
+                    LogError(ex.ToString());
                 }
             }
         }
@@ -118,12 +118,12 @@ namespace ClientRenderer.Connection
                 }
                 catch (HttpRequestException)
                 {
-                    Log("Error while doing a request. Retrying in 10 seconds...");
+                    LogError("Error while doing a request. Retrying in 10 seconds...");
                     await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken); // wait before retrying on HTTP errors
                 }
                 catch (Exception ex)
                 {
-                    Log(ex.ToString());
+                    LogError(ex.ToString());
                 }
             }
 
@@ -167,6 +167,18 @@ namespace ClientRenderer.Connection
             hrm.Method = HttpMethod.Post;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/finish-rendering?job-id={jobId}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+            using var response = await _httpClient.SendAsync(hrm);
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task SetRenderJobMetadata(int jobId, RenderJob renderJob)
+        {
+            using HttpRequestMessage hrm = new HttpRequestMessage();
+            hrm.Method = HttpMethod.Post;
+            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/set-renderjob-metadata?job-id={jobId}");
+            hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+            hrm.Headers.TryAddWithoutValidation("PlayerName", renderJob.PlayerName);
+            hrm.Headers.TryAddWithoutValidation("MapName", renderJob.MapName);
             using var response = await _httpClient.SendAsync(hrm);
             response.EnsureSuccessStatusCode();
         }
@@ -218,24 +230,24 @@ namespace ClientRenderer.Connection
                 }
                 catch (Exception ex)
                 {
-                    Log($"Error while uploading a video chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retrying...");
+                    LogError($"Error while uploading a video chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retrying...");
                 }
             }
         }
 
-        public async Task PostImage(string screenshotPath, int jobId)
+        public async Task UploadThumbnail(string thumbnailPath, int jobId)
         {
             using var hrm = new HttpRequestMessage();
             
-            await using var fileStream = new FileStream(screenshotPath, FileMode.Open, FileAccess.Read);
+            await using var fileStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read);
             using var multipart = new MultipartFormDataContent
             {
-                { new StreamContent(fileStream), "file", $"image.png" }
+                { new StreamContent(fileStream), "file", $"thumbnail.png" }
             };
 
             hrm.Content = multipart;
             hrm.Method = HttpMethod.Post;
-            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"images/upload-image?job-id={jobId}");
+            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"thumbnails/upload?job-id={jobId}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
 
             using var response = await _httpClient.SendAsync(hrm);
@@ -244,7 +256,12 @@ namespace ClientRenderer.Connection
 
         private void Log(string message)
         {
-            Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\x1b[31m[Server] \x1b[36m{message}\x1b[0m");
+            Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\e[38;5;198m[Server] \x1b[36m{message}\x1b[0m");
+        }
+
+        private void LogError(string message)
+        {
+            Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\u001b[38;5;198m[Server] \u001b[31m{message}\x1b[0m");
         }
 
         internal class ClientCredentialsGrantRequest

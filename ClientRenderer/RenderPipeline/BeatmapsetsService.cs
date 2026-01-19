@@ -1,7 +1,6 @@
 using Newtonsoft.Json;
-using System.Net;
-using static ClientRenderer.Render.BeatmapsetsService;
-
+using OsuApi.BanchoV2.Users.Models;
+using System.Collections.Concurrent;
 namespace ClientRenderer.Render;
 
 public class BeatmapsetsService
@@ -12,12 +11,19 @@ public class BeatmapsetsService
     private const string BaseUrlSyui = "https://syui.eternityglow.de/";
     private const string BaseUrlOsu = "https://osu.ppy.sh/beatmapsets/";
 
-    public int LastBeatmapId;
+    public static readonly ConcurrentDictionary<string, BeatmapsetInfo> HashToValues = new();
+
+    public record BeatmapsetInfo
+    {
+        public int BeatmapsetId { get; set; }
+        public int TotalLength { get; set; }
+    }
 
     public async Task<Result<Stream>> DownloadBeatmapset(int beatmapsetId)
     {
         var downloadResult = await DownloadBeatmapViaSyui(beatmapsetId);
 
+        // Downloading via osu is being done in Program.cs
         //if (!downloadResult.Success)
         //{
         //    downloadResult = await DownloadBeatmapViaOsu(beatmapsetId);
@@ -84,10 +90,17 @@ public class BeatmapsetsService
 
     private async Task<Result<Stream>> DownloadBeatmapViaSyui(string beatmapMd5Hash)
     {
-        Result<int> beatmapId = await GetBeatmapsetIdViaSyui(beatmapMd5Hash);
-        if (!beatmapId.Success) return Result<Stream>.FromFailure(beatmapId.Exception!);
-        LastBeatmapId = beatmapId.Output;
-        return await DownloadBeatmapViaSyui(beatmapId.Output);
+        Result<int> beatmapsetId = await GetBeatmapsetIdViaSyui(beatmapMd5Hash);
+        if (!beatmapsetId.Success) return Result<Stream>.FromFailure(beatmapsetId.Exception!);
+
+        HashToValues.AddOrUpdate(beatmapMd5Hash, 
+            new BeatmapsetInfo() {  BeatmapsetId = beatmapsetId.Output }, 
+            (k, b) =>
+            {
+                b.BeatmapsetId = beatmapsetId.Output;
+                return b;
+            });
+        return await DownloadBeatmapViaSyui(beatmapsetId.Output);
     }
 
     private async Task<Result<Stream>> DownloadBeatmapViaMino(int beatmapsetId)
@@ -108,10 +121,17 @@ public class BeatmapsetsService
 
     private async Task<Result<Stream>> DownloadBeatmapViaMino(string beatmapMd5Hash)
     {
-        Result<int> beatmapId = await GetBeatmapsetIdViaMino(beatmapMd5Hash);
-        if (!beatmapId.Success) return Result<Stream>.FromFailure(beatmapId.Exception!);
-        LastBeatmapId = beatmapId.Output;
-        return await DownloadBeatmapViaMino(beatmapId.Output);
+        Result<int> beatmapsetId = await GetBeatmapsetIdViaMino(beatmapMd5Hash);
+        if (!beatmapsetId.Success) return Result<Stream>.FromFailure(beatmapsetId.Exception!);
+
+        HashToValues.AddOrUpdate(beatmapMd5Hash,
+            new BeatmapsetInfo() { BeatmapsetId = beatmapsetId.Output },
+            (k, b) =>
+            {
+                b.BeatmapsetId = beatmapsetId.Output;
+                return b;
+            });
+        return await DownloadBeatmapViaMino(beatmapsetId.Output);
     }
 
     private async Task<Result<int>> GetBeatmapsetIdViaSyui(string beatmapMd5Hash)
@@ -124,6 +144,14 @@ public class BeatmapsetsService
             var httpResponse = await HttpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
             httpResponse.EnsureSuccessStatusCode();
             var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
+
+            HashToValues.AddOrUpdate(beatmapMd5Hash,
+                new BeatmapsetInfo() { TotalLength = (int)json!.TotalLength },
+                (k, b) =>
+                {
+                    b.TotalLength = (int)json!.TotalLength;
+                    return b;
+                });
             return Result<int>.FromSuccess((int)json!.ParentSetID);
         }
         catch (Exception ex)
@@ -142,6 +170,14 @@ public class BeatmapsetsService
             var httpResponse = await HttpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
             httpResponse.EnsureSuccessStatusCode();
             var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
+
+            HashToValues.AddOrUpdate(beatmapMd5Hash,
+                new BeatmapsetInfo() { TotalLength = (int)json!.total_length },
+                (k, b) =>
+                {
+                    b.TotalLength = (int)json!.total_length;
+                    return b;
+                });
             return Result<int>.FromSuccess((int)json!.beatmapset_id);
         }
         catch (Exception ex)
