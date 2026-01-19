@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ClientRenderer.Models
+﻿namespace ClientRenderer.Models
 {
     public enum RenderType
     {
