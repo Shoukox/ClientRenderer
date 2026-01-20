@@ -369,7 +369,7 @@ async Task RenderVideo()
                 if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
                     double.TryParse(progressString, out double progress) && progress != 0)
                 {
-                    await serverConnection.ReportRenderingProgress(renderJob!.JobId, Math.Min(100, progress));
+                    await serverConnection.ReportRenderingProgress(renderJob!.JobId, Math.Min(1.0, progress));
                     Log($"[JobId:{renderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
                 }
                 await Task.Delay(1000, cancellationToken);
@@ -426,7 +426,7 @@ async Task RenderVideo()
                 if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
                     double.TryParse(progressString, out double progress) && progress != 0)
                 {
-                    await serverConnection.ReportRenderingProgress(renderJob!.JobId, Math.Min(100, progress));
+                    await serverConnection.ReportRenderingProgress(renderJob!.JobId, Math.Min(1.0, progress));
                     Log($"[JobId:{renderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
                 }
                 await Task.Delay(1000, cancellationToken);
