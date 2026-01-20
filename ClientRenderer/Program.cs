@@ -3,6 +3,7 @@ using ClientRenderer.Models;
 using ClientRenderer.Render;
 using CommandLine;
 using DanserWrapper;
+using ExperimentalRendererWrapper;
 using OsuApi.BanchoV2;
 using OsuParsers.Replays;
 using System.Collections.Concurrent;
@@ -102,7 +103,6 @@ var rendererCredentials = JsonSerializer.Deserialize<RendererCredentials>(File.R
 var cts = new CancellationTokenSource();
 var cancellationToken = cts.Token;
 
-
 // Set server url
 string url = cmdParserResult.Value.ServerUrl!;
 Uri serverUri = new Uri(url);
@@ -114,12 +114,20 @@ Log($"{chosenEncoder} has been set as a default danser encoder.");
 // Load dict
 LoadDictionary();
 
-// Check danser 
+// Setup danser 
 DanserGo.AdjustOsuApiCredentials(osuApiConfig.ClientId, osuApiConfig.ClientSecret);
 DanserGo.AdjustDanserGoPath(Environment.OSVersion);
 if (!DanserGo.DanserExists())
 {
-    Log("Danser-go does not exist!");
+    LogError("Danser-go does not exist!");
+    return;
+}
+
+// Setup experimental renderer
+ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
+if (!ExperimentalRenderer.ExperimentalRendererExists())
+{
+    LogError("Experimental renderer does not exist!");
     return;
 }
 
@@ -136,8 +144,8 @@ while (!await serverConnection.InitializeToken() && !cancellationToken.IsCancell
 }
 Log("Token was successfully initialized");
 
+bool useExperimentalRenderer;
 BeatmapsetsService beatmapsetsService = new BeatmapsetsService();
-
 RenderJob? renderJob = null;
 while (!cancellationToken.IsCancellationRequested)
 {
@@ -158,6 +166,7 @@ while (!cancellationToken.IsCancellationRequested)
         }
 
         Log($"[JobId:{renderJob!.JobId}] New render job received!");
+        useExperimentalRenderer = renderJob.RenderSettings.UseExperimentalRenderer;
         await RenderVideo();
     }
     catch (Exception e)
@@ -187,22 +196,21 @@ async Task<(Replay decodedReplay, byte[] replay, bool shouldReturn)> DownloadRep
     bool shouldReturn = false;
     if (decodedReplay.Ruleset != OsuParsers.Enums.Ruleset.Standard)
     {
-        LogError($"[JobId:{renderJob!.JobId}] Unsupported ruleset: {decodedReplay.Ruleset}. Only osu!standard is supported.");
-        await serverConnection.Failure(renderJob.JobId, "ruleset", false);
-        shouldReturn = true;
-        return (decodedReplay, replay, shouldReturn);
+        useExperimentalRenderer = true;
     }
 
     return (decodedReplay, replay, shouldReturn);
 }
 
-async Task<(string replayPath, string beatmapHash, bool shouldReturn)> DownloadBeatmap(Replay decodedReplay, byte[] replay)
+async Task<(string replayPath, string beatmapHash, bool shouldReturn, string oszPath)> DownloadBeatmapset(Replay decodedReplay, byte[] replay)
 {
     await serverConnection.ReportRenderingProgress(renderJob!.JobId, -1);
     Log($"[JobId:{renderJob!.JobId}] Downloading a beatmap...");
     var beatmapHash = decodedReplay.BeatmapMD5Hash;
-    bool shouldReturn = false;
 
+    string oszFileName = $"{beatmapHash}.osz";
+    string oszPath = Path.Combine(AppContext.BaseDirectory, oszFileName);
+    string beatmapsetDirectoryPath = Path.Combine(DanserGo.SongsPath, oszFileName);
     ReplaysService.LoadAllBeatmapsHashes();
     if (!ReplaysService.BeatmapExists(beatmapHash))
     {
@@ -210,20 +218,29 @@ async Task<(string replayPath, string beatmapHash, bool shouldReturn)> DownloadB
         Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset...");
 
         var downloadResult = await beatmapsetsService.DownloadBeatmapset(beatmapHash);
-        string oszPath = Path.Combine(DanserGo.SongsPath, $"{beatmapHash}.osz");
+
         if (downloadResult.Success)
         {
             using (var oszStream = downloadResult.Output!)
             {
-                ZipFile.ExtractToDirectory(oszStream, oszPath);
+                var oszStreamCopy = new MemoryStream();
+                await oszStream.CopyToAsync(oszStreamCopy);
+                oszStreamCopy.Position = 0;
+
+                if (useExperimentalRenderer)
+                {
+                    using var fs = new FileStream(oszPath, FileMode.Create, FileAccess.Write);
+                    await oszStreamCopy.CopyToAsync(fs);
+                    oszStreamCopy.Position = 0;
+                }
+                ZipFile.ExtractToDirectory(oszStreamCopy, beatmapsetDirectoryPath);
             }
         }
-
 
         ReplaysService.LoadAllBeatmapsHashes();
         if (!ReplaysService.BeatmapExists(beatmapHash) || !downloadResult.Success)
         {
-            Directory.Delete(oszPath, true);
+            Directory.Delete(beatmapsetDirectoryPath, true);
             Log($"[JobId:{renderJob!.JobId}] Downloading beatmapset via osu");
             downloadResult = await beatmapsetsService.DownloadBeatmapViaOsu(BeatmapsetsService.HashToValues[beatmapHash].BeatmapsetId, osuSessionCookie);
             if (!downloadResult.Success)
@@ -231,18 +248,36 @@ async Task<(string replayPath, string beatmapHash, bool shouldReturn)> DownloadB
                 await serverConnection.Failure(renderJob.JobId, "beatmapset_download_failed", false);
                 LogError($"[JobId:{renderJob!.JobId}] Failed to download a beatmapset!");
                 LogError($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
-                return (string.Empty, beatmapHash, true);
+                return (string.Empty, beatmapHash, true, oszPath);
             }
 
             using (var oszStream = downloadResult.Output!)
             {
-                ZipFile.ExtractToDirectory(oszStream, oszPath);
+                var oszStreamCopy = new MemoryStream();
+                await oszStream.CopyToAsync(oszStreamCopy);
+                oszStreamCopy.Position = 0;
+
+                if (useExperimentalRenderer)
+                {
+                    using var fs = new FileStream(oszPath, FileMode.Create, FileAccess.Write);
+                    await oszStreamCopy.CopyToAsync(fs);
+                    oszStreamCopy.Position = 0;
+                }
+                ZipFile.ExtractToDirectory(oszStreamCopy, beatmapsetDirectoryPath);
             }
         }
         Log($"[JobId:{renderJob!.JobId}] Sucessfully downloaded beatmapset! (.osz)");
     }
     else
     {
+        if (useExperimentalRenderer)
+        {
+            if (File.Exists(oszPath))
+            {
+                File.Delete(oszPath);
+            }
+            ZipFile.CreateFromDirectory(beatmapsetDirectoryPath, oszPath);
+        }
         Log($"[JobId:{renderJob!.JobId}] Beatmap exists locally, proceeding to render...");
     }
     string replayPath = Path.GetFullPath(beatmapHash + ".osr");
@@ -250,11 +285,12 @@ async Task<(string replayPath, string beatmapHash, bool shouldReturn)> DownloadB
 
     SaveDictionary();
 
-    return (replayPath, beatmapHash, false);
+    return (replayPath, beatmapHash, false, oszPath);
 }
 
-async Task DownloadSkin()
+async Task<string> DownloadSkin()
 {
+    string oskPath = Path.Combine(AppContext.BaseDirectory, renderJob.RenderSettings.SkinName);
     renderJob.RenderSettings.Encoder = chosenEncoder;
     if (renderJob.RenderSettings.SkinName.EndsWith(".osk"))
     {
@@ -265,10 +301,24 @@ async Task DownloadSkin()
             string skinNameHex = Convert.ToHexString(Encoding.ASCII.GetBytes(renderJob.RenderSettings.SkinName)) + ".osk";
             Log($"[JobId:{renderJob!.JobId}] Skin: {renderJob.RenderSettings.SkinName}. Downloading a skin...");
             Stream skinAsStream = new MemoryStream(await serverConnection.DownloadSkin(skinNameHex));
+            if (useExperimentalRenderer)
+            {
+                using var fs = new FileStream(oskPath, FileMode.Create, FileAccess.Write);
+                await skinAsStream.CopyToAsync(fs);
+                skinAsStream.Position = 0;
+            }
             ZipFile.ExtractToDirectory(skinAsStream, skinDirectory);
         }
         else
         {
+            if (useExperimentalRenderer)
+            {
+                if (File.Exists(oskPath))
+                {
+                    File.Delete(oskPath);
+                }
+                ZipFile.CreateFromDirectory(skinDirectory, oskPath);
+            }
             Log($"[JobId:{renderJob!.JobId}] Skin: {renderJob.RenderSettings.SkinName}. Already exists.");
         }
         renderJob.RenderSettings.SkinName = skinNameNoOsk;
@@ -276,6 +326,8 @@ async Task DownloadSkin()
 
     DanserGo.AdjustConfig(renderJob.RenderSettings);
     Log($"[JobId:{renderJob!.JobId}] Start rendering");
+
+    return oskPath;
 }
 
 async Task RenderVideo()
@@ -286,68 +338,117 @@ async Task RenderVideo()
 
 
     // Download beatmap
-    (string replayPath, string beatmapHash, shouldReturn) = await DownloadBeatmap(decodedReplay, replay);
+    (string replayPath, string beatmapHash, shouldReturn, string oszPath) = await DownloadBeatmapset(decodedReplay, replay);
     if (shouldReturn) return;
 
-    int videoLength = 0;
+    int beatmapLength = 0;
     if (BeatmapsetsService.HashToValues.TryGetValue(beatmapHash, out var beatmapsetInfo))
     {
-        videoLength = beatmapsetInfo.TotalLength;
+        beatmapLength = beatmapsetInfo.TotalLength;
     }
 
 
     // Download skin if needed
-    await DownloadSkin();
-
+    string skinOskPath = await DownloadSkin();
 
     // Render using danser-go
-    DanserGo.DanserResult result;
-    ConcurrentDictionary<string, string> renderUpdates = new();
-    try
+    string videoPath = Path.Combine(DanserGo.VideosPath, beatmapHash + ".mp4");
+    if (!useExperimentalRenderer)
     {
-        string arguments = $"-r \"{replayPath}\" " +
-                          $"-out \"{beatmapHash}\" " +
-                          $"-preciseprogress";
-        Task<DanserGo.DanserResult> renderTask = new DanserGo()
-            .ExecuteAsync(arguments, renderUpdates);
-
-        while (renderTask.IsCompleted == false && !cancellationToken.IsCancellationRequested)
+        DanserResult result;
+        ConcurrentDictionary<string, string> renderUpdates = new();
+        try
         {
-            if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
-                double.TryParse(progressString, out double progress) && progress != 0)
+            string arguments = $"-r \"{replayPath}\" " +
+                              $"-out \"{beatmapHash}\" " +
+                              $"-preciseprogress";
+            Task<DanserResult> renderTask = new DanserGo().ExecuteAsync(arguments, renderUpdates);
+
+            while (renderTask.IsCompleted == false && !cancellationToken.IsCancellationRequested)
             {
-                await serverConnection.ReportRenderingProgress(renderJob!.JobId, progress);
-                Log($"[JobId:{renderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
+                if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
+                    double.TryParse(progressString, out double progress) && progress != 0)
+                {
+                    await serverConnection.ReportRenderingProgress(renderJob!.JobId, progress);
+                    Log($"[JobId:{renderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
+                }
+                await Task.Delay(1000, cancellationToken);
             }
-            await Task.Delay(1000, cancellationToken);
+
+            result = await renderTask;
+
+            // Match map name
+            var mapNameRegex = new Regex(@"Playing: (.*)", RegexOptions.Compiled);
+            var matchMapName = mapNameRegex.Match(result.Output + "\n" + result.Error);
+            if (matchMapName.Success && !renderUpdates.ContainsKey("Map"))
+            {
+                renderJob.MapName = matchMapName.Groups[1].Value.Trim();
+            }
         }
-
-        result = await renderTask;
-
-        var videoLengthRegex = new Regex(@"time=(\d{2}):(\d{2}):(\d{2}).(\d{2})", RegexOptions.Compiled | RegexOptions.RightToLeft);
-        var mapNameRegex = new Regex(@"Playing: (.*)", RegexOptions.Compiled);
-
-        // Match map name
-        var matchMapName = mapNameRegex.Match(result.Output + "\n" + result.Error);
-        if (matchMapName.Success && !renderUpdates.ContainsKey("Map"))
+        catch (Exception ex)
         {
-            renderJob.MapName = matchMapName.Groups[1].Value.Trim();
+            await serverConnection.Failure(renderJob.JobId, "danser", false);
+            LogError($"[JobId:{renderJob!.JobId}] Failed to render a replay! Error when calling danser-go");
+            LogError(ex.ToString());
+            return;
+        }
+
+        if (!result.Success)
+        {
+            await serverConnection.Failure(renderJob.JobId, "danser", false);
+            LogError($"[JobId:{renderJob!.JobId}] Failed to render a replay! Saving danser logs");
+            File.WriteAllText(Path.Combine($"danser_log{DateTime.UtcNow.ToFileTimeUtc()}"), "Danser Standard Output:\n" + result.Output + "\n\n\nDanser Error Output:\n" + result.Error);
+            return;
         }
     }
-    catch (Exception ex)
+    else
     {
-        await serverConnection.Failure(renderJob.JobId, "danser", false);
-        LogError($"[JobId:{renderJob!.JobId}] Failed to render replay! Error when calling danser-go");
-        LogError(ex.ToString());
-        return;
-    }
+        ExperimentalRendererResult result;
+        ConcurrentDictionary<string, string> renderUpdates = new() { ["BeatmapLength"] = $"{beatmapLength}"};
+        try
+        {
+            string arguments =
+                $"--view file \"{replayPath}\" " +
+                $"--import-beatmap \"{oszPath}\" " +
+                $"--record " +
+                $"--record-output \"{videoPath}\" " +
+                $"--yes ";
 
-    if (!result.Success)
-    {
-        await serverConnection.Failure(renderJob.JobId, "danser", false);
-        LogError($"[JobId:{renderJob!.JobId}] Failed to render replay! Saving danser logs");
-        File.WriteAllText(Path.Combine($"danser_log{DateTime.UtcNow.ToFileTimeUtc()}"), "Danser Standard Output:\n" + result.Output + "\n\n\nDanser Error Output:\n" + result.Error);
-        return;
+            if (renderJob.RenderSettings.SkinName != "default")
+            {
+                arguments += $"--skin import \"{skinOskPath}\"";
+            }
+
+            var renderTask = new ExperimentalRenderer().ExecuteAsync(arguments, renderUpdates);
+
+            while (renderTask.IsCompleted == false && !cancellationToken.IsCancellationRequested)
+            {
+                if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
+                    double.TryParse(progressString, out double progress) && progress != 0)
+                {
+                    await serverConnection.ReportRenderingProgress(renderJob!.JobId, progress);
+                    Log($"[JobId:{renderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
+                }
+                await Task.Delay(1000, cancellationToken);
+            }
+
+            result = await renderTask;
+        }
+        catch (Exception ex)
+        {
+            await serverConnection.Failure(renderJob.JobId, "Failed to render a replay using experimental renderer", false);
+            LogError($"[JobId:{renderJob!.JobId}] Failed to render replay! Error when calling experimental renderer");
+            LogError(ex.ToString());
+            return;
+        }
+
+        if (!result.Success)
+        {
+            await serverConnection.Failure(renderJob.JobId, "Failed to render a replay using experimental renderer. Result is not successful", false);
+            LogError($"[JobId:{renderJob!.JobId}] Failed to render replay! Saving danser logs");
+            File.WriteAllText(Path.Combine($"experimental-renderer_log{DateTime.UtcNow.ToFileTimeUtc()}"), "Experimental Renderer Standard Output:\n" + result.Output + "\n\n\nExperimental Renderer Error Output:\n" + result.Error);
+            return;
+        }
     }
 
     Log($"[JobId:{renderJob!.JobId}] Rendering done!");
@@ -357,7 +458,6 @@ async Task RenderVideo()
     {
         try
         {
-            string videoPath = Path.Combine(DanserGo.VideosPath, beatmapHash + ".mp4");
             await serverConnection.PostVideo(videoPath, renderJob.JobId);
             successfullyUploaded = true;
             break;
@@ -376,7 +476,15 @@ async Task RenderVideo()
         return;
     }
     Log($"[JobId:{renderJob!.JobId}] Successfully uploaded");
-    await RenderThumbnail(videoLength, replayPath, beatmapHash);
+    if (decodedReplay.Ruleset is OsuParsers.Enums.Ruleset.Standard)
+    {
+        await RenderThumbnail(beatmapLength, replayPath, beatmapHash);
+    }
+    else
+    {
+        Log("A thumbnail will not be rendered - the replay is not from osu!std");
+    }
+
     try
     {
         await serverConnection.SetRenderJobMetadata(renderJob.JobId, renderJob);
@@ -394,7 +502,7 @@ async Task RenderVideo()
 async Task RenderThumbnail(int videoLength, string replayPath, string beatmapHash)
 {
     Log($"[JobId:{renderJob!.JobId}] Generating a thumbnail...");
-    DanserGo.DanserResult result;
+    DanserResult result;
     ConcurrentDictionary<string, string> renderUpdates = new();
     try
     {
@@ -403,6 +511,14 @@ async Task RenderThumbnail(int videoLength, string replayPath, string beatmapHas
                            $"-ss \"{videoLength + 6}\"";
 
         result = await new DanserGo().ExecuteAsync(arguments, new());
+
+        if (!result.Success)
+        {
+            arguments = $"-r \"{replayPath}\" " +
+                           $"-out \"{beatmapHash}\" " +
+                           $"-ss \"{0}\"";
+            result = await new DanserGo().ExecuteAsync(arguments, new());
+        }
         Log($"[JobId:{renderJob!.JobId}] Successfully rendered a thumbnail!");
 
         Log($"[JobId:{renderJob!.JobId}] Uploading the thumbnail...");

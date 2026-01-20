@@ -13,7 +13,7 @@ namespace ClientRenderer.Utils
         private static AsyncRetryPolicy<HttpResponseMessage> RetryPolicy = Policy.Handle<HttpRequestException>()
                                         .Or<TaskCanceledException>()
                                         .OrResult<HttpResponseMessage>(x => !x.IsSuccessStatusCode && x.StatusCode != System.Net.HttpStatusCode.NotFound)
-                                        .WaitAndRetryAsync(MaxRetries, retryAttempt => TimeSpan.FromSeconds(3000 + Random.Shared.Next(1000, 5000)),
+                                        .WaitAndRetryAsync(MaxRetries, retryAttempt => TimeSpan.FromSeconds(3 + Random.Shared.Next(1, 5)),
                                             (hrm, ts) =>
                                             {
                                                 if (hrm.Exception != null)

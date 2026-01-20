@@ -24,7 +24,7 @@ namespace ClientRenderer.Connection
             _httpClient.BaseAddress = new Uri(url);
             _rendererCredentials = credentials;
             _cancellationToken = cancellationToken;
-            _sendHeartbeatsTask = Task.Run(SendHeartbeat);
+            _sendHeartbeatsTask = Task.Run(SendHeartbeatWorker);
         }
 
         public async Task<bool> InitializeToken()
@@ -44,6 +44,7 @@ namespace ClientRenderer.Connection
                 using var response = await _httpClient.SendAsync(hrm);
                 _lastClientCredentialsGrantResponse = await response.Content.ReadFromJsonAsync<ClientCredentialsGrantResponse>();
                 _nextTokenRefreshTime = DateTime.Now.AddMinutes(_lastClientCredentialsGrantResponse!.ExpiresIn * 0.9); // 90% of the token lifetime
+                await SendHeartbeat();
                 return true;
             }
             catch
@@ -52,7 +53,7 @@ namespace ClientRenderer.Connection
             }
         }
 
-        private async Task SendHeartbeat()
+        private async Task SendHeartbeatWorker()
         {
             while (!_cancellationToken.IsCancellationRequested)
             {
@@ -60,26 +61,21 @@ namespace ClientRenderer.Connection
                 {
                     if (_lastClientCredentialsGrantResponse == null)
                     {
-                        await Task.Delay(3000);
+                        await Task.Delay(100);
                         continue;
                     }
                     if (_nextTokenRefreshTime - DateTime.Now <= TimeSpan.Zero)
                     {
-                        // Log("Reinitializing an access token");
+                        Log("Reinitializing an access token");
                         while (!await InitializeToken())
                         {
                             Log("Error while reinitializing an access token. Retrying...");
                             await Task.Delay(5000);
                         }
                     }
-                    using HttpRequestMessage hrm = new HttpRequestMessage();
-                    hrm.Method = HttpMethod.Post;
-                    hrm.RequestUri = new Uri(_httpClient.BaseAddress!, "render/heartbeat");
-                    hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse.AccessToken}");
-                    using var response = await _httpClient.SendAsync(hrm);
-                    response.EnsureSuccessStatusCode();
+                    await SendHeartbeat();
 
-                    // Log("Heartbeat was sent.");
+                    Log("A heartbeat has been sent.");
                     await Task.Delay(heartbeatIntervalMs);
                 }
                 catch (HttpRequestException)
@@ -92,6 +88,16 @@ namespace ClientRenderer.Connection
                     LogError(ex.ToString());
                 }
             }
+        }
+
+        private async Task SendHeartbeat()
+        {
+            using HttpRequestMessage hrm = new HttpRequestMessage();
+            hrm.Method = HttpMethod.Post;
+            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, "render/heartbeat");
+            hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+            using var response = await _httpClient.SendAsync(hrm);
+            response.EnsureSuccessStatusCode();
         }
 
         public async Task<RenderJob?> GetNextRenderJob(int intervalMs = 2000)

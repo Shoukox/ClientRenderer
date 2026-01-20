@@ -1,4 +1,4 @@
-﻿using static DanserWrapper.DanserGo;
+﻿using DanserWrapper;
 
 namespace ClientRenderer.Models
 {
