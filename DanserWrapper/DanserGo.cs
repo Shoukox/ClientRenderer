@@ -23,7 +23,7 @@ public class DanserGo
         CreateDirectoriesIfNeeded();
     }
 
-    public async Task<DanserResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 180_000)
+    public async Task<DanserResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000)
     {
         var processStartInfo = new ProcessStartInfo
         {
