@@ -1,4 +1,5 @@
 ﻿using ClientRenderer.Models;
+using ClientRenderer.Utils;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -8,7 +9,7 @@ namespace ClientRenderer.Connection
 {
     internal class ServerConnection
     {
-        private HttpClient _httpClient = new HttpClient();
+        private HttpClient _httpClient = new HttpClient(new HttpRetryHandler(new HttpClientHandler()));
         private RendererCredentials _rendererCredentials;
         private ClientCredentialsGrantResponse? _lastClientCredentialsGrantResponse = null;
         private DateTime _nextTokenRefreshTime = DateTime.MinValue;
@@ -227,6 +228,7 @@ namespace ClientRenderer.Connection
                 catch (Exception ex)
                 {
                     LogError($"Error while uploading a video chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retrying...");
+                    chunkIndex -= 1;
                 }
             }
         }
@@ -234,7 +236,7 @@ namespace ClientRenderer.Connection
         public async Task UploadThumbnail(string thumbnailPath, int jobId)
         {
             using var hrm = new HttpRequestMessage();
-            
+
             await using var fileStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read);
             using var multipart = new MultipartFormDataContent
             {

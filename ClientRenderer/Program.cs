@@ -131,7 +131,7 @@ ReplaysService.LoadAllBeatmapsHashes();
 ServerConnection serverConnection = new ServerConnection(url, rendererCredentials, cancellationToken);
 while (!await serverConnection.InitializeToken() && !cancellationToken.IsCancellationRequested)
 {
-    LogError("Failed to initialize a token, retrying in 5 seconds... Check your internet connection");
+    LogError("Failed to initialize a token, retrying in 5 seconds... Check your renderer-settings.json (or internet connection)");
     await Task.Delay(5000);
 }
 Log("Token was successfully initialized");
@@ -400,7 +400,7 @@ async Task RenderThumbnail(int videoLength, string replayPath, string beatmapHas
     {
         string arguments = $"-r \"{replayPath}\" " +
                            $"-out \"{beatmapHash}\" " +
-                           $"-ss \"{videoLength + 5}\"";
+                           $"-ss \"{videoLength + 6}\"";
 
         result = await new DanserGo().ExecuteAsync(arguments, new());
         Log($"[JobId:{renderJob!.JobId}] Successfully rendered a thumbnail!");
@@ -491,6 +491,6 @@ class CommandLineOptions
     [Option('s', "server", Required = true, HelpText = "Set the upload server. Example: http://localhost:5000")]
     public string? ServerUrl { get; set; }
 
-    [Option('e', "encoder", Required = false, HelpText = "Set the video encoder. Defaults to h264_nvenc")]
+    [Option('e', "encoder", Required = false, HelpText = "Set the video encoder. Available: h264_nvenc, av1_nvenc or libx264 for cpu encoding. Defaults to h264_nvenc")]
     public string Encoder { get; set; } = "h264_nvenc";
 }

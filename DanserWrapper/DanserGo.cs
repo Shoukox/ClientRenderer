@@ -109,8 +109,20 @@ public class DanserGo
         json["Recording"]["FrameHeight"] = configuration.VideoHeight;
         json["Recording"]["FPS"] = 60;
         json["Recording"]["OutputDir"] = "videos";
-        json["Recording"]["libx264"]["CRF"] = 20;
-        json["Recording"]["h264_nvenc"]["CQ"] = 30;
+        json["Recording"]["libx264"]["RateControl"] = "crf";
+        json["Recording"]["libx264"]["Bitrate"] = "1M";
+        json["Recording"]["libx264"]["CRF"] = 30;
+        json["Recording"]["libx264"]["Profile"] = "high";
+        json["Recording"]["libx264"]["Preset"] = "veryfast";
+        json["Recording"]["h264_nvenc"]["RateControl"] = "cq";
+        json["Recording"]["h264_nvenc"]["Bitrate"] = "1M";
+        json["Recording"]["h264_nvenc"]["CQ"] = 37;
+        json["Recording"]["h264_nvenc"]["Profile"] = "main";
+        json["Recording"]["h264_nvenc"]["Preset"] = "p1";
+        json["Recording"]["av1_nvenc"]["RateControl"] = "cbr";
+        json["Recording"]["av1_nvenc"]["Bitrate"] = "0.8M";
+        json["Recording"]["av1_nvenc"]["CQ"] = 35;
+        json["Recording"]["av1_nvenc"]["Preset"] = "p1";
 
         json["Recording"]["MotionBlur"]["Enabled"] = configuration.MotionBlur;
 
@@ -141,7 +153,6 @@ public class DanserGo
         json["Playfield"]["Background"]["Dim"]["Normal"] = configuration.BackgroundDim;
         json["Playfield"]["Background"]["Dim"]["Breaks"] = configuration.BackgroundDim * 0.8;
         json["Playfield"]["SeizureWarning"]["Enabled"] = false;
-
 
         File.WriteAllText(configPath, JsonConvert.SerializeObject(json, Formatting.Indented));
     }
