@@ -76,7 +76,7 @@ public class DanserGo
 
         string outputText = outputStringBuilder.ToString();
         string errorText = errorStringBuilder.ToString();
-        bool success = process.ExitCode == 0 && outputText.Contains("Finished!") && outputText.Contains("Video is available at:");
+        bool success = process.ExitCode == 0 && outputText.Contains("Exiting normally.");
         return new DanserResult
         {
             ExitCode = process.ExitCode,
