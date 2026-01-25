@@ -14,6 +14,7 @@ namespace ClientRenderer.Models
         public string ReplayPath { get; set; } = default!;
         public string VideoPath { get; set; } = default!;
         public string BeatmapsetOszPath { get; set; } = default!;
+        public string BeatmapsetDirectoryPath { get; set; } = default!;
         public string SkinOskPath { get; set; } = default!;
         public long FileTimeNow { get; set; } = DateTime.Now.ToFileTime();
     }

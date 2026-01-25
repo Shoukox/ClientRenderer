@@ -21,6 +21,8 @@ public class BeatmapsetsDownloader(BanchoApiV2 banchoApiV2, string osuSessionCoo
                 new OsuProvider(banchoApiV2, osuSessionCookie, s_HttpClient),
     ];
 
+    public BeatmapsetsProviderBase FallbackProvider => BeatmapsetsProviders.Last();
+
     public async Task<string> CreateMd5(string path)
     {
         byte[] inputBytes = await File.ReadAllBytesAsync(path);
@@ -77,6 +79,17 @@ public class BeatmapsetsDownloader(BanchoApiV2 banchoApiV2, string osuSessionCoo
         return Result<Stream>.FromFailure(new Exception("Failed to download a beatmapset"));
     }
 
+    public async Task<Result<Stream>> DownloadBeatmapsetAsStreamUsingFallbackProvider(string beatmapHash)
+    {
+        var downloadResult = await FallbackProvider.DownloadBeatmapset(beatmapHash);
+        if (downloadResult.Success)
+        {
+            return downloadResult;
+        }
+
+        return Result<Stream>.FromFailure(new Exception("Failed to download a beatmapset"));
+    }
+
     public async Task<Result> SetBeatmapsetInfos(string beatmapHash)
     {
         foreach (var provider in BeatmapsetsProviders.Reverse())
@@ -91,6 +104,30 @@ public class BeatmapsetsDownloader(BanchoApiV2 banchoApiV2, string osuSessionCoo
         return Result.FromFailure(new Exception("Failed to set beatmapset infos"));
     }
 
+    public async Task SaveBeatmapsetStreamAsFile(RenderPipelineInfo info, Stream beatmapsetStream)
+    {
+        using (var oszStream = beatmapsetStream)
+        {
+            var oszStreamCopy = new MemoryStream();
+
+            await oszStream.CopyToAsync(oszStreamCopy);
+            oszStreamCopy.Position = 0;
+
+            if (info.UseExperimentalRenderer)
+            {
+                using var fs = new FileStream(info.BeatmapsetOszPath, FileMode.Create, FileAccess.Write);
+                await oszStreamCopy.CopyToAsync(fs);
+                oszStreamCopy.Position = 0;
+            }
+
+            if (Directory.Exists(info.BeatmapsetDirectoryPath))
+            {
+                Directory.Delete(info.BeatmapsetDirectoryPath, true);
+            }
+            ZipFile.ExtractToDirectory(oszStreamCopy, info.BeatmapsetDirectoryPath);
+        }
+    }
+
     public async Task<bool> DownloadBeatmapset(RenderPipelineInfo info, ServerConnection serverConnection, string osuSessionCookie)
     {
         await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, -1);
@@ -98,7 +135,7 @@ public class BeatmapsetsDownloader(BanchoApiV2 banchoApiV2, string osuSessionCoo
 
         string oszFileName = $"{info.BeatmapHash}.osz";
         info.BeatmapsetOszPath = Path.Combine(AppContext.BaseDirectory, oszFileName);
-        string beatmapsetDirectoryPath = Path.Combine(DanserGo.SongsPath, oszFileName);
+        info.BeatmapsetDirectoryPath = Path.Combine(DanserGo.SongsPath, oszFileName);
         LoadAllBeatmapsHashes();
         if (!BeatmapExists(info.BeatmapHash))
         {
@@ -114,20 +151,21 @@ public class BeatmapsetsDownloader(BanchoApiV2 banchoApiV2, string osuSessionCoo
                 return false;
             }
 
-            using (var oszStream = downloadResult.Output!)
+            await SaveBeatmapsetStreamAsFile(info, downloadResult.Output!);
+            LoadAllBeatmapsHashes();
+            if (!BeatmapExists(info.BeatmapHash))
             {
-                var oszStreamCopy = new MemoryStream();
-                await oszStream.CopyToAsync(oszStreamCopy);
-                oszStreamCopy.Position = 0;
-
-                if (info.UseExperimentalRenderer)
+                downloadResult = await DownloadBeatmapsetAsStreamUsingFallbackProvider(info.BeatmapHash);
+                if (!downloadResult.Success)
                 {
-                    using var fs = new FileStream(info.BeatmapsetOszPath, FileMode.Create, FileAccess.Write);
-                    await oszStreamCopy.CopyToAsync(fs);
-                    oszStreamCopy.Position = 0;
+                    await serverConnection.Failure(info.RenderJob.JobId, "beatmapset_download_failed", false);
+                    Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to download a beatmapset!");
+                    Logger.LogError($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
+                    return false;
                 }
-                ZipFile.ExtractToDirectory(oszStreamCopy, beatmapsetDirectoryPath);
+                await SaveBeatmapsetStreamAsFile(info, downloadResult.Output!);
             }
+
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Sucessfully downloaded beatmapset! (.osz)");
         }
         else
@@ -138,7 +176,7 @@ public class BeatmapsetsDownloader(BanchoApiV2 banchoApiV2, string osuSessionCoo
                 {
                     File.Delete(info.BeatmapsetOszPath);
                 }
-                ZipFile.CreateFromDirectory(beatmapsetDirectoryPath, info.BeatmapsetOszPath);
+                ZipFile.CreateFromDirectory(info.BeatmapsetDirectoryPath, info.BeatmapsetOszPath);
             }
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmap exists locally, proceeding to render...");
         }

@@ -39,7 +39,7 @@ namespace ClientRenderer.RenderPipeline
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Start rendering");
 
             // Render using danser-go
-            info.VideoPath = Path.Combine(DanserGo.VideosPath, $"{info.BeatmapHash}{info.FileTimeNow}.mp4");
+            info.VideoPath = Path.Combine(DanserGo.VideosPath, $"{info.BeatmapHash}.mp4");
             if (!info.UseExperimentalRenderer)
             {
                 await RenderWithDanser(info, serverConnection, cancellationToken);
@@ -85,6 +85,8 @@ namespace ClientRenderer.RenderPipeline
         {
             DanserResult result;
             ConcurrentDictionary<string, string> renderUpdates = new();
+
+            _beatmapsetsDownloader.LoadAllBeatmapsHashes();
             try
             {
                 string arguments = $"-r \"{info.ReplayPath}\" " +
@@ -176,8 +178,8 @@ namespace ClientRenderer.RenderPipeline
             if (!result.Success)
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "Failed to render a replay using experimental renderer. Result is not successful", false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render replay! Saving danser Logger.Logs");
-                File.WriteAllText(Path.Combine($"experimental-renderer_Logger.Log{DateTime.UtcNow.ToFileTimeUtc()}"), "Experimental Renderer Standard Output:\n" + result.Output + "\n\n\nExperimental Renderer Error Output:\n" + result.Error);
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render replay! Saving danser logs");
+                File.WriteAllText(Path.Combine($"experimental-renderer_logs{DateTime.UtcNow.ToFileTimeUtc()}"), "Experimental Renderer Standard Output:\n" + result.Output + "\n\n\nExperimental Renderer Error Output:\n" + result.Error);
                 return false;
             }
 
