@@ -2,7 +2,7 @@
 
 namespace ClientRenderer.Models
 {
-    internal record RendererCredentials
+    public record RendererCredentials
     {
         [JsonPropertyName("client-id")]
         public int ClientId { get; set; } = -1;

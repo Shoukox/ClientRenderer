@@ -44,6 +44,7 @@ namespace ExperimentalRendererWrapper
                 if (string.IsNullOrWhiteSpace(e.Data))
                     return;
                 outputStringBuilder.AppendLine(e.Data);
+                //Console.WriteLine(e.Data);
 
                 if (e.Data.Contains("Audio decoded in "))
                 {
@@ -57,6 +58,7 @@ namespace ExperimentalRendererWrapper
                 if (string.IsNullOrWhiteSpace(e.Data))
                     return;
                 errorStringBuilder.AppendLine(e.Data);
+                //Console.WriteLine(e.Data);
 
                 // Match progress
                 var matchProgress = progressRegex.Match(e.Data);

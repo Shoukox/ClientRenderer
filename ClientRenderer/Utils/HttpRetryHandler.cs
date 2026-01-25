@@ -1,9 +1,5 @@
-﻿using ClientRenderer.Connection;
-using Polly;
+﻿using Polly;
 using Polly.Retry;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ClientRenderer.Utils
 {

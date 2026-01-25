@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace ClientRenderer.Connection
 {
-    internal class ServerConnection
+    public class ServerConnection
     {
         private HttpClient _httpClient = new HttpClient(new HttpRetryHandler(new HttpClientHandler()));
         private RendererCredentials _rendererCredentials;
@@ -174,11 +174,11 @@ namespace ClientRenderer.Connection
             response.EnsureSuccessStatusCode();
         }
 
-        public async Task SetRenderJobMetadata(int jobId, RenderJob renderJob)
+        public async Task SetRenderJobMetadata(RenderJob renderJob)
         {
             using HttpRequestMessage hrm = new HttpRequestMessage();
             hrm.Method = HttpMethod.Post;
-            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/set-renderjob-metadata?job-id={jobId}");
+            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/set-renderjob-metadata?job-id={renderJob.JobId}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
             hrm.Headers.TryAddWithoutValidation("PlayerName", renderJob.PlayerName);
             hrm.Headers.TryAddWithoutValidation("MapName", renderJob.MapName);
