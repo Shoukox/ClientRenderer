@@ -1,0 +1,41 @@
+<Application xmlns="https://github.com/avaloniaui"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 x:Class="ClientRenderer.App"
+			 xmlns:local="using:ClientRenderer"
+			 RequestedThemeVariant="Dark">
+	<Application.DataTemplates>
+		<local:ViewLocator/>
+	</Application.DataTemplates>
+
+	<Application.Styles>
+		<FluentTheme />
+		<StyleInclude Source="Styles/DefaultStyles.axaml"></StyleInclude>
+	</Application.Styles>
+
+	<Application.Resources>
+		<LinearGradientBrush x:Key="BackgroundGradient">
+			<GradientStop Offset="0" Color="#771c5a"></GradientStop>
+			<GradientStop Offset="1" Color="#331c65"></GradientStop>
+		</LinearGradientBrush>
+		<BlurEffect x:Key="BackgroundBlur" Radius="10" />
+		<ImageBrush x:Key="Background" Source="/Assets/Images/background.png" Stretch="UniformToFill"></ImageBrush>
+		<SolidColorBrush x:Key="PrimaryBackground">#4a1c62</SolidColorBrush>
+	</Application.Resources>
+
+	<TrayIcon.Icons>
+		<TrayIcons>
+			<TrayIcon Icon="/Assets/icon.ico"
+					  ToolTipText="Avalonia Tray Icon ToolTip"
+					  IsVisible="true"
+					  Clicked="Tray_OnClick">
+				<TrayIcon.Menu>
+					<NativeMenu>
+						<NativeMenuItem Header="Show" Click="Tray_Show_OnClick" />
+						<NativeMenuItemSeparator />
+						<NativeMenuItem Header="Exit" Click="Tray_Exit_OnClick"/>
+					</NativeMenu>
+				</TrayIcon.Menu>
+			</TrayIcon>
+		</TrayIcons>
+	</TrayIcon.Icons>
+</Application>
