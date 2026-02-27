@@ -1,4 +1,4 @@
-﻿using ClientRenderer.Connection;
+﻿using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using DanserWrapper;
@@ -6,9 +6,9 @@ using System.Collections.Concurrent;
 
 namespace ClientRenderer.RenderPipeline
 {
-    public class ThumbnailRenderer
+    public class ThumbnailRenderer : IThumbnailRenderer
     {
-        public async Task<bool> RenderThumbnail(RenderPipelineInfo info, ServerConnection serverConnection)
+        public async Task<bool> RenderThumbnail(RenderPipelineInfo info, IServerConnection serverConnection)
         {
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Generating a thumbnail...");
             DanserResult result;

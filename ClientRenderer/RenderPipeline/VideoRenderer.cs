@@ -1,55 +1,45 @@
-﻿using ClientRenderer.Connection;
+using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
-using ClientRenderer.Render;
 using DanserWrapper;
 using ExperimentalRendererWrapper;
-using OsuApi.BanchoV2;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace ClientRenderer.RenderPipeline
 {
-    public class VideoRenderer(BanchoApiV2 banchoApiV2, string osuSessionCookie)
+    public class VideoRenderer(
+        IThumbnailRenderer thumbnailRenderer,
+        IReplaysDownloader replaysDownloader,
+        IBeatmapsetsDownloader beatmapsetsDownloader,
+        ISkinsDownloader skinsDownloader) : IVideoRenderer
     {
-        private ThumbnailRenderer _thumbnailRenderer = new();
-        private ReplaysDownloader _replaysDownloader = new();
-        private BeatmapsetsDownloader _beatmapsetsDownloader = new(banchoApiV2, osuSessionCookie);
-        private SkinsDownloader _skinsDownloader = new();
-        public async Task<bool> RenderVideo(RenderPipelineInfo info, ServerConnection serverConnection, CancellationToken cancellationToken)
+        private readonly IThumbnailRenderer _thumbnailRenderer = thumbnailRenderer;
+        private readonly IReplaysDownloader _replaysDownloader = replaysDownloader;
+        private readonly IBeatmapsetsDownloader _beatmapsetsDownloader = beatmapsetsDownloader;
+        private readonly ISkinsDownloader _skinsDownloader = skinsDownloader;
+
+        public async Task<bool> RenderVideo(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken)
         {
-            // Download replay
             if (!await _replaysDownloader.DownloadReplay(info, serverConnection))
-            {
                 return false;
-            }
 
-            // Download beatmap
-            if (!await _beatmapsetsDownloader.DownloadBeatmapset(info, serverConnection, osuSessionCookie))
-            {
+            if (!await _beatmapsetsDownloader.DownloadBeatmapset(info, serverConnection))
                 return false;
-            }
 
-            // Download skin if needed
             if (!await _skinsDownloader.DownloadSkin(info, serverConnection))
-            {
                 return false;
-            }
+
             DanserGo.AdjustConfig(info.RenderJob.RenderSettings);
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Start rendering");
 
-            // Render using danser-go
             info.VideoPath = Path.Combine(DanserGo.VideosPath, $"{info.BeatmapHash}.mp4");
-            if (!info.UseExperimentalRenderer)
-            {
-                await RenderWithDanser(info, serverConnection, cancellationToken);
-            }
+            var renderSuccess = !info.UseExperimentalRenderer
+                ? await RenderWithDanser(info, serverConnection, cancellationToken)
+                : await RenderWithExperimentalRenderer(info, serverConnection, cancellationToken);
 
-            // Render using experimental renderer
-            else
-            {
-                await RenderWithExperimentalRenderer(info, serverConnection, cancellationToken);
-            }
+            if (!renderSuccess)
+                return false;
 
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering done!");
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Uploading to the server...!");
@@ -81,20 +71,17 @@ namespace ClientRenderer.RenderPipeline
             return true;
         }
 
-        public async Task<bool> RenderWithDanser(RenderPipelineInfo info, ServerConnection serverConnection, CancellationToken cancellationToken)
+        public async Task<bool> RenderWithDanser(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken)
         {
             DanserResult result;
             ConcurrentDictionary<string, string> renderUpdates = new();
 
-            _beatmapsetsDownloader.LoadAllBeatmapsHashes();
             try
             {
-                string arguments = $"-r \"{info.ReplayPath}\" " +
-                                  $"-out \"{Path.GetFileNameWithoutExtension(info.VideoPath)}\" " +
-                                  $"-preciseprogress";
+                string arguments = $"-r \"{info.ReplayPath}\" -out \"{Path.GetFileNameWithoutExtension(info.VideoPath)}\" -preciseprogress";
                 Task<DanserResult> renderTask = new DanserGo().ExecuteAsync(arguments, renderUpdates);
 
-                while (renderTask.IsCompleted == false && !cancellationToken.IsCancellationRequested)
+                while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {
                     if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
                         double.TryParse(progressString, out double progress) && progress != 0)
@@ -107,7 +94,6 @@ namespace ClientRenderer.RenderPipeline
 
                 result = await renderTask;
 
-                // Match map name
                 var mapNameRegex = new Regex(@"Playing: (.*)", RegexOptions.Compiled);
                 var matchMapName = mapNameRegex.Match(result.Output + "\n" + result.Error);
                 if (matchMapName.Success && !renderUpdates.ContainsKey("Map"))
@@ -127,34 +113,30 @@ namespace ClientRenderer.RenderPipeline
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "danser", false);
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render a replay! Saving danser logs");
-                File.WriteAllText(Path.Combine($"danser_Logger.Log{DateTime.UtcNow.ToFileTimeUtc()}"), "Danser Standard Output:\n" + result.Output + "\n\n\nDanser Error Output:\n" + result.Error);
+                Directory.CreateDirectory("logs");
+                File.WriteAllText(Path.Combine("logs", $"danser_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log"),
+                    "Danser Standard Output:\n" + result.Output + "\n\n\nDanser Error Output:\n" + result.Error);
                 return false;
             }
 
             return true;
         }
 
-        public async Task<bool> RenderWithExperimentalRenderer(RenderPipelineInfo info, ServerConnection serverConnection, CancellationToken cancellationToken)
+        public async Task<bool> RenderWithExperimentalRenderer(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken)
         {
             ExperimentalRendererResult result;
             ConcurrentDictionary<string, string> renderUpdates = new() { ["BeatmapLength"] = $"{info.BeatmapLength}" };
             try
             {
                 string arguments =
-                    $"--view file \"{info.ReplayPath}\" " +
-                    $"--import-beatmap \"{info.BeatmapsetOszPath}\" " +
-                    $"--record " +
-                    $"--record-output \"{info.VideoPath}\" " +
-                    $"--yes ";
+                    $"--view file \"{info.ReplayPath}\" --import-beatmap \"{info.BeatmapsetOszPath}\" --record --record-output \"{info.VideoPath}\" --yes ";
 
                 if (info.RenderJob.RenderSettings.SkinName != "default")
-                {
                     arguments += $"--skin import \"{info.SkinOskPath}\"";
-                }
 
                 var renderTask = new ExperimentalRenderer().ExecuteAsync(arguments, renderUpdates);
 
-                while (renderTask.IsCompleted == false && !cancellationToken.IsCancellationRequested)
+                while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {
                     if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
                         double.TryParse(progressString, out double progress) && progress != 0)
@@ -179,7 +161,9 @@ namespace ClientRenderer.RenderPipeline
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "Failed to render a replay using experimental renderer. Result is not successful", false);
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render replay! Saving danser logs");
-                File.WriteAllText(Path.Combine($"experimental-renderer_logs{DateTime.UtcNow.ToFileTimeUtc()}"), "Experimental Renderer Standard Output:\n" + result.Output + "\n\n\nExperimental Renderer Error Output:\n" + result.Error);
+                Directory.CreateDirectory("logs");
+                File.WriteAllText(Path.Combine("logs", $"experimental-renderer_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log"),
+                    "Experimental Renderer Standard Output:\n" + result.Output + "\n\n\nExperimental Renderer Error Output:\n" + result.Error);
                 return false;
             }
 

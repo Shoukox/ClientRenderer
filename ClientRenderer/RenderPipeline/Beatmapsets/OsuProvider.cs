@@ -1,10 +1,12 @@
-﻿using ClientRenderer.Helpers;
+using ClientRenderer.Helpers;
 using ClientRenderer.Models;
 using OsuApi.BanchoV2;
+using System.Collections.Concurrent;
 
 namespace ClientRenderer.RenderPipeline.Beatmapsets
 {
-    public class OsuProvider(BanchoApiV2 osuApi, string osuSessionCookie, HttpClient httpClient) : BeatmapsetsProviderBase
+    public class OsuProvider(BanchoApiV2 osuApi, string osuSessionCookie, HttpClient httpClient, ConcurrentDictionary<string, BeatmapsetInfo> hashToValues)
+        : BeatmapsetsProviderBase(hashToValues)
     {
         private const string BaseUrlOsu = "https://osu.ppy.sh/";
 
@@ -12,41 +14,24 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
         {
             await SetBeatmapsetInfos(beatmapHash);
 
-            int beatmapsetId = 0;
-            if (HashToValues.TryGetValue(beatmapHash, out var result))
-            {
-                beatmapsetId = result.BeatmapsetId;
-            }
-            else
-            {
+            if (!HashToValues.TryGetValue(beatmapHash, out var result))
                 return Result<Stream>.FromFailure(new KeyNotFoundException(beatmapHash));
-            }
 
-            return await DownloadBeatmapset(beatmapsetId);
+            return await DownloadBeatmapset(result.BeatmapsetId);
         }
 
         public override async Task<Result> SetBeatmapsetInfos(string beatmapHash)
         {
             var lookupBeatmapResponse = await osuApi.Beatmaps.LookupBeatmap(new() { Checksum = beatmapHash });
             if (lookupBeatmapResponse?.BeatmapExtended is null)
-            {
                 return Result.FromFailure(new NullReferenceException("lookupBeatmapResponse?.BeatmapExtended is null"));
-            }
+
+            int beatmapsetId = lookupBeatmapResponse.BeatmapExtended.BeatmapsetId!.Value;
+            int totalLength = lookupBeatmapResponse.BeatmapExtended.TotalLength ?? 0;
 
             HashToValues.AddOrUpdate(beatmapHash,
-                    new BeatmapsetInfo() { BeatmapsetId = lookupBeatmapResponse.BeatmapExtended.BeatmapsetId!.Value },
-                    (k, b) =>
-                    {
-                        b.BeatmapsetId = lookupBeatmapResponse.BeatmapExtended.BeatmapsetId!.Value;
-                        return b;
-                    });
-            HashToValues.AddOrUpdate(beatmapHash,
-                    new BeatmapsetInfo() { TotalLength = lookupBeatmapResponse.BeatmapExtended.TotalLength ?? 0 },
-                    (k, b) =>
-                    {
-                        b.TotalLength = lookupBeatmapResponse.BeatmapExtended.TotalLength ?? 0;
-                        return b;
-                    });
+                new BeatmapsetInfo { BeatmapsetId = beatmapsetId, TotalLength = totalLength },
+                (_, b) => { b.BeatmapsetId = beatmapsetId; b.TotalLength = totalLength; return b; });
 
             return Result.FromSuccess();
         }

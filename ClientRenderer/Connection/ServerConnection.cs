@@ -1,4 +1,5 @@
-﻿using ClientRenderer.Models;
+﻿using ClientRenderer.Abstractions;
+using ClientRenderer.Models;
 using ClientRenderer.Utils;
 using System.Globalization;
 using System.Net.Http.Headers;
@@ -7,24 +8,27 @@ using System.Text.Json.Serialization;
 
 namespace ClientRenderer.Connection
 {
-    public class ServerConnection
+    public class ServerConnection : IServerConnection
     {
-        private HttpClient _httpClient = new HttpClient(new HttpRetryHandler(new HttpClientHandler()));
-        private RendererCredentials _rendererCredentials;
+        private readonly HttpClient _httpClient = new(new HttpRetryHandler(new HttpClientHandler()));
+        private readonly RendererCredentials _rendererCredentials;
+        private const int TokenWaitMs = 1000;
         private ClientCredentialsGrantResponse? _lastClientCredentialsGrantResponse = null;
         private DateTime _nextTokenRefreshTime = DateTime.MinValue;
 
         private int heartbeatIntervalMs = 10_000;
         private readonly Task _sendHeartbeatsTask;
 
-        private CancellationToken _cancellationToken;
+        private readonly CancellationTokenSource _internalCts;
+        private readonly CancellationToken _cancellationToken;
 
         public ServerConnection(string url, RendererCredentials credentials, CancellationToken cancellationToken)
         {
             _httpClient.BaseAddress = new Uri(url);
             _rendererCredentials = credentials;
-            _cancellationToken = cancellationToken;
-            _sendHeartbeatsTask = Task.Run(SendHeartbeatWorker);
+            _internalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _cancellationToken = _internalCts.Token;
+            _sendHeartbeatsTask = Task.Run(SendHeartbeatWorker, _cancellationToken);
         }
 
         public async Task<bool> InitializeToken()
@@ -41,14 +45,23 @@ namespace ClientRenderer.Connection
             });
             try
             {
-                using var response = await _httpClient.SendAsync(hrm);
-                _lastClientCredentialsGrantResponse = await response.Content.ReadFromJsonAsync<ClientCredentialsGrantResponse>();
-                _nextTokenRefreshTime = DateTime.Now.AddMinutes(_lastClientCredentialsGrantResponse!.ExpiresIn * 0.9); // 90% of the token lifetime
+                using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                _lastClientCredentialsGrantResponse = await response.Content.ReadFromJsonAsync<ClientCredentialsGrantResponse>(_cancellationToken);
+                if (string.IsNullOrWhiteSpace(_lastClientCredentialsGrantResponse?.AccessToken) || _lastClientCredentialsGrantResponse.ExpiresIn <= 0)
+                {
+                    LogError("Token response is invalid.");
+                    return false;
+                }
+
+                _nextTokenRefreshTime = DateTime.Now.AddSeconds(_lastClientCredentialsGrantResponse.ExpiresIn * 0.9); // 90% of the token lifetime
                 await SendHeartbeat();
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                LogError($"InitializeToken failed: {ex.Message}");
                 return false;
             }
         }
@@ -61,7 +74,7 @@ namespace ClientRenderer.Connection
                 {
                     if (_lastClientCredentialsGrantResponse == null)
                     {
-                        await Task.Delay(100);
+                        await Task.Delay(TokenWaitMs, _cancellationToken);
                         continue;
                     }
                     if (_nextTokenRefreshTime - DateTime.Now <= TimeSpan.Zero)
@@ -70,13 +83,13 @@ namespace ClientRenderer.Connection
                         while (!await InitializeToken())
                         {
                             Log("Error while reinitializing an access token. Retrying...");
-                            await Task.Delay(5000);
+                            await Task.Delay(5000, _cancellationToken);
                         }
                     }
                     await SendHeartbeat();
 
                     Log("A heartbeat has been sent.");
-                    await Task.Delay(heartbeatIntervalMs);
+                    await Task.Delay(heartbeatIntervalMs, _cancellationToken);
                 }
                 catch (HttpRequestException)
                 {
@@ -117,7 +130,7 @@ namespace ClientRenderer.Connection
                         renderJob = (await response.Content.ReadFromJsonAsync<RenderJob>())!;
                         break;
                     }
-                    await Task.Delay(intervalMs);
+                    await Task.Delay(intervalMs, _cancellationToken);
                 }
                 catch (HttpRequestException)
                 {
@@ -190,7 +203,8 @@ namespace ClientRenderer.Connection
         {
             using HttpRequestMessage hrm = new HttpRequestMessage();
             hrm.Method = HttpMethod.Post;
-            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/failure?job-id={jobId}&reason={reason}&rerender={rerender}");
+            var encodedReason = Uri.EscapeDataString(reason ?? string.Empty);
+            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/failure?job-id={jobId}&reason={encodedReason}&rerender={rerender}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
             using var response = await _httpClient.SendAsync(hrm);
             response.EnsureSuccessStatusCode();
@@ -198,6 +212,8 @@ namespace ClientRenderer.Connection
 
         public async Task PostVideo(string videoPath, int jobId, int chunkSizeBytes = 5 * 1024 * 1024)
         {
+            const int maxRetriesPerChunk = 5;
+
             var fileInfo = new FileInfo(videoPath);
             long fileSize = fileInfo.Length;
             int totalChunks = (int)Math.Ceiling((double)fileSize / chunkSizeBytes);
@@ -206,35 +222,48 @@ namespace ClientRenderer.Connection
 
             for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
             {
-                try
+                int attempts = 0;
+                bool uploaded = false;
+                while (attempts < maxRetriesPerChunk)
                 {
-                    long offset = (long)chunkIndex * chunkSizeBytes;
-                    int currentChunkSize = (int)Math.Min(chunkSizeBytes, fileSize - offset);
-                    byte[] buffer = new byte[currentChunkSize];
-
-                    fileStream.Seek(offset, SeekOrigin.Begin);
-                    int read = await fileStream.ReadAsync(buffer, 0, currentChunkSize);
-
-                    using var multipart = new MultipartFormDataContent
+                    attempts++;
+                    try
                     {
-                        { new ByteArrayContent(buffer, 0, read), "file", $"video.part{chunkIndex}.mp4" }
-                    };
+                        long offset = (long)chunkIndex * chunkSizeBytes;
+                        int currentChunkSize = (int)Math.Min(chunkSizeBytes, fileSize - offset);
+                        byte[] buffer = new byte[currentChunkSize];
 
-                    using var hrm = new HttpRequestMessage();
-                    hrm.Content = multipart;
-                    hrm.Method = HttpMethod.Post;
-                    hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/upload-replay-videofile?job-id={jobId}&chunk-index={chunkIndex}&total-chunks={totalChunks}");
-                    hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+                        fileStream.Seek(offset, SeekOrigin.Begin);
+                        int read = await fileStream.ReadAsync(buffer, 0, currentChunkSize, _cancellationToken);
 
-                    using var response = await _httpClient.SendAsync(hrm);
-                    response.EnsureSuccessStatusCode();
+                        using var multipart = new MultipartFormDataContent
+                        {
+                            { new ByteArrayContent(buffer, 0, read), "file", $"video.part{chunkIndex}.mp4" }
+                        };
 
-                    Log($"Uploaded chunk {chunkIndex + 1}/{totalChunks}");
+                        using var hrm = new HttpRequestMessage();
+                        hrm.Content = multipart;
+                        hrm.Method = HttpMethod.Post;
+                        hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/upload-replay-videofile?job-id={jobId}&chunk-index={chunkIndex}&total-chunks={totalChunks}");
+                        hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+
+                        using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+                        response.EnsureSuccessStatusCode();
+
+                        Log($"Uploaded chunk {chunkIndex + 1}/{totalChunks}");
+                        uploaded = true;
+                        break;
+                    }
+                    catch (Exception ex) when (attempts < maxRetriesPerChunk)
+                    {
+                        LogError($"Error while uploading chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retry {attempts}/{maxRetriesPerChunk}...");
+                        await Task.Delay(1000, _cancellationToken);
+                    }
                 }
-                catch (Exception ex)
+
+                if (!uploaded)
                 {
-                    LogError($"Error while uploading a video chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retrying...");
-                    chunkIndex -= 1;
+                    throw new Exception($"Failed to upload chunk {chunkIndex + 1}/{totalChunks} after {maxRetriesPerChunk} attempts.");
                 }
             }
         }
@@ -258,6 +287,24 @@ namespace ClientRenderer.Connection
             response.EnsureSuccessStatusCode();
         }
 
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                _internalCts.Cancel();
+                await _sendHeartbeatsTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // expected during shutdown
+            }
+            finally
+            {
+                _httpClient.Dispose();
+                _internalCts.Dispose();
+            }
+        }
+
         private void Log(string message)
         {
             Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\e[38;5;198m[Server] \x1b[36m{message}\x1b[0m");
@@ -266,26 +313,6 @@ namespace ClientRenderer.Connection
         private void LogError(string message)
         {
             Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\u001b[38;5;198m[Server] \u001b[31m{message}\x1b[0m");
-        }
-
-        internal class ClientCredentialsGrantRequest
-        {
-            [JsonPropertyName("client_id")] public required int ClientId { get; set; }
-
-            [JsonPropertyName("client_secret")] public required string ClientSecret { get; set; }
-
-            [JsonPropertyName("grant_type")] public required string GrantType { get; set; }
-
-            [JsonPropertyName("scope")] public required string Scope { get; set; }
-        }
-
-        internal class ClientCredentialsGrantResponse
-        {
-            [JsonPropertyName("token_type")] public string? TokenType { get; set; }
-
-            [JsonPropertyName("expires_in")] public int ExpiresIn { get; set; }
-
-            [JsonPropertyName("access_token")] public string? AccessToken { get; set; }
         }
     }
 }

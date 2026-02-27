@@ -1,10 +1,11 @@
-﻿using ClientRenderer.Helpers;
+using ClientRenderer.Helpers;
 using ClientRenderer.Models;
 using Newtonsoft.Json;
+using System.Collections.Concurrent;
 
 namespace ClientRenderer.RenderPipeline.Beatmapsets
 {
-    public class SyuiProvider(HttpClient httpClient) : BeatmapsetsProviderBase
+    public class SyuiProvider(HttpClient httpClient, ConcurrentDictionary<string, BeatmapsetInfo> hashToValues) : BeatmapsetsProviderBase(hashToValues)
     {
         private const string BaseUrlSyui = "https://syui.eternityglow.de/";
 
@@ -12,18 +13,12 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
         {
             await SetBeatmapsetInfos(beatmapHash);
 
-            int beatmapsetId = 0;
-            if (HashToValues.TryGetValue(beatmapHash, out var result))
-            {
-                beatmapsetId = result.BeatmapsetId;
-            }
-            else
-            {
+            if (!HashToValues.TryGetValue(beatmapHash, out var result))
                 return Result<Stream>.FromFailure(new KeyNotFoundException(beatmapHash));
-            }
 
-            return await DownloadBeatmapset(beatmapsetId);
+            return await DownloadBeatmapset(result.BeatmapsetId);
         }
+
         public override async Task<Result> SetBeatmapsetInfos(string beatmapHash)
         {
             try
@@ -36,22 +31,12 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
                 var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
 
                 int totalLength = (int)json!.TotalLength;
-                HashToValues.AddOrUpdate(beatmapHash,
-                    new BeatmapsetInfo() { TotalLength = totalLength },
-                    (k, b) =>
-                    {
-                        b.TotalLength = totalLength;
-                        return b;
-                    });
-
                 int beatmapsetId = (int)json!.ParentSetID;
+
                 HashToValues.AddOrUpdate(beatmapHash,
-                    new BeatmapsetInfo() { BeatmapsetId = beatmapsetId },
-                    (k, b) =>
-                    {
-                        b.BeatmapsetId = beatmapsetId;
-                        return b;
-                    });
+                    new BeatmapsetInfo { TotalLength = totalLength, BeatmapsetId = beatmapsetId },
+                    (_, b) => { b.TotalLength = totalLength; b.BeatmapsetId = beatmapsetId; return b; });
+
                 return Result.FromSuccess();
             }
             catch (Exception ex)
@@ -59,6 +44,7 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
                 return Result.FromFailure(ex);
             }
         }
+
         private async Task<Result<Stream>> DownloadBeatmapset(int beatmapsetId)
         {
             try

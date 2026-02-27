@@ -1,4 +1,4 @@
-using ClientRenderer.Connection;
+using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using OsuParsers.Decoders;
@@ -6,14 +6,14 @@ using OsuParsers.Replays;
 
 namespace ClientRenderer.Render;
 
-public class ReplaysDownloader
+public class ReplaysDownloader : IReplaysDownloader
 {
     public Replay DecodeReplay(byte[] replayBytes)
     {
         return ReplayDecoder.Decode(new MemoryStream(replayBytes));
     }
 
-    public async Task<bool> DownloadReplay(RenderPipelineInfo info, ServerConnection serverConnection)
+    public async Task<bool> DownloadReplay(RenderPipelineInfo info, IServerConnection serverConnection)
     {
         await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, -2);
         Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading a replay...");

@@ -1,10 +1,11 @@
-﻿using ClientRenderer.Helpers;
+using ClientRenderer.Helpers;
 using ClientRenderer.Models;
 using Newtonsoft.Json;
+using System.Collections.Concurrent;
 
 namespace ClientRenderer.RenderPipeline.Beatmapsets
 {
-    public class MinoProvider(HttpClient httpClient) : BeatmapsetsProviderBase
+    public class MinoProvider(HttpClient httpClient, ConcurrentDictionary<string, BeatmapsetInfo> hashToValues) : BeatmapsetsProviderBase(hashToValues)
     {
         private const string BaseUrlMino = "https://catboy.best/";
 
@@ -12,17 +13,10 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
         {
             await SetBeatmapsetInfos(beatmapHash);
 
-            int beatmapsetId = 0;
-            if (HashToValues.TryGetValue(beatmapHash, out var result))
-            {
-                beatmapsetId = result.BeatmapsetId;
-            }
-            else
-            {
+            if (!HashToValues.TryGetValue(beatmapHash, out var result))
                 return Result<Stream>.FromFailure(new KeyNotFoundException(beatmapHash));
-            }
 
-            return await DownloadBeatmapset(beatmapsetId);
+            return await DownloadBeatmapset(result.BeatmapsetId);
         }
 
         public override async Task<Result> SetBeatmapsetInfos(string beatmapHash)
@@ -38,22 +32,12 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
                 var json = JsonConvert.DeserializeObject<dynamic>(await httpResponse.Content.ReadAsStringAsync());
 
                 int totalLength = (int)json!.total_length;
-                HashToValues.AddOrUpdate(beatmapHash,
-                    new BeatmapsetInfo() { TotalLength = totalLength },
-                    (k, b) =>
-                    {
-                        b.TotalLength = totalLength;
-                        return b;
-                    });
-
                 int beatmapsetId = (int)json!.beatmapset_id;
+
                 HashToValues.AddOrUpdate(beatmapHash,
-                    new BeatmapsetInfo() { BeatmapsetId = beatmapsetId },
-                    (k, b) =>
-                    {
-                        b.BeatmapsetId = beatmapsetId;
-                        return b;
-                    });
+                    new BeatmapsetInfo { TotalLength = totalLength, BeatmapsetId = beatmapsetId },
+                    (_, b) => { b.TotalLength = totalLength; b.BeatmapsetId = beatmapsetId; return b; });
+
                 return Result.FromSuccess();
             }
             catch (Exception ex)

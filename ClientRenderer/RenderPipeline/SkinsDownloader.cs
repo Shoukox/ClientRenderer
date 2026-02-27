@@ -1,17 +1,18 @@
-﻿using ClientRenderer.Connection;
+﻿using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using DanserWrapper;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace ClientRenderer.RenderPipeline
 {
-    public class SkinsDownloader
+    public class SkinsDownloader : ISkinsDownloader
     {
-        public async Task<bool> DownloadSkin(RenderPipelineInfo info, ServerConnection serverConnection)
+        public async Task<bool> DownloadSkin(RenderPipelineInfo info, IServerConnection serverConnection)
         {
-            string skinNameNoOsk = info.RenderJob.RenderSettings.SkinName[..^4].GetHashCode().ToString();
+            string skinNameNoOsk = ToStableHash(info.RenderJob.RenderSettings.SkinName[..^4]);
             string oskPath = Path.Combine(AppContext.BaseDirectory, skinNameNoOsk);
             info.RenderJob.RenderSettings.Encoder = info.ChosenRenderingEncoder;
             if (info.RenderJob.RenderSettings.SkinName.EndsWith(".osk"))
@@ -47,6 +48,12 @@ namespace ClientRenderer.RenderPipeline
 
             info.SkinOskPath = oskPath;
             return true;
+        }
+
+        private static string ToStableHash(string value)
+        {
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+            return Convert.ToHexString(hash)[..16].ToLowerInvariant();
         }
     }
 }
