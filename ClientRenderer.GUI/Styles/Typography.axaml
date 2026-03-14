@@ -1,0 +1,18 @@
+﻿<Styles xmlns="https://github.com/avaloniaui"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+	<Style Selector="Label.icon, Label.icon-only">
+		<Setter Property="FontFamily" Value="{DynamicResource PhosphorFill}" />
+		<Setter Property="FontSize" Value="22" />
+		<Setter Property="Padding" Value="3 7.5 -0.4 3" />
+		<Setter Property="Margin" Value="0 0 5 0" />
+	</Style>
+
+	<Style Selector="Label.topbar">
+		<Setter Property="Foreground" Value="{DynamicResource Typography.TopBar.Foreground}" />
+		<Setter Property="FontFamily" Value="{StaticResource SLR}" />
+	</Style>
+
+	<Style Selector="Label.subtitle">
+		<Setter Property="FontFamily" Value="{DynamicResource NotoSansJP-Regular}" />
+	</Style>
+</Styles>

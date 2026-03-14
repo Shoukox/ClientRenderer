@@ -1,0 +1,10 @@
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
+					xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+	<SolidColorBrush x:Key="Typography.TopBar.Foreground">#FFFFFF</SolidColorBrush>
+
+	<FontFamily x:Key="Phosphor">avares://ClientRenderer.GUI/Assets/Fonts/Phosphor.ttf#Phosphor</FontFamily>
+	<FontFamily x:Key="PhosphorFill">avares://ClientRenderer.GUI/Assets/Fonts/Phosphor-Fill.ttf#Phosphor-Fill</FontFamily>
+	<FontFamily x:Key="NotoSansJP-Regular">avares://ClientRenderer.GUI/Assets/Fonts/NotoSansJP-Regular.ttf#Noto Sans JP</FontFamily>
+	<FontFamily x:Key="SLR">avares://ClientRenderer.GUI/Assets/Fonts/ShadowsIntoLight-Regular.ttf#Shadows Into Light</FontFamily>
+	<FontFamily x:Key="Console">Consolas, Cascadia Mono, JetBrains Mono, monospace</FontFamily>
+</ResourceDictionary>

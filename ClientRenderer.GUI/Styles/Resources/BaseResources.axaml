@@ -1,0 +1,14 @@
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
+					xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+	<LinearGradientBrush x:Key="BackgroundGradient">
+		<GradientStop Offset="0" Color="#771c5a" />
+		<GradientStop Offset="1" Color="#331c65" />
+	</LinearGradientBrush>
+
+	<BlurEffect x:Key="BackgroundBlur" Radius="5" />
+	<ImageBrush x:Key="Background" Source="/Assets/Images/background.png" Stretch="UniformToFill" />
+
+	<SolidColorBrush x:Key="DarkPrimaryBackground">#410c54</SolidColorBrush>
+	<SolidColorBrush x:Key="PrimaryBackground">#952b99</SolidColorBrush>
+	<SolidColorBrush x:Key="TopBar.Background">#400042</SolidColorBrush>
+</ResourceDictionary>

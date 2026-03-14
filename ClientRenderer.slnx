@@ -1,3 +1,7 @@
 <Solution>
-  <Project Path="ClientRenderer/ClientRenderer.csproj" />
+  <Project Path="ClientRenderer.CLI/ClientRenderer.CLI.csproj" />
+  <Project Path="ClientRenderer.GUI/ClientRenderer.GUI.csproj" />
+  <Project Path="ClientRenderer/ClientRenderer.csproj" Id="170a87f1-b8f1-4797-b758-6f98dd97e743" />
+  <Project Path="DanserWrapper/DanserWrapper.csproj" />
+  <Project Path="ExperimentalRendererWrapper/ExperimentalRendererWrapper.csproj" />
 </Solution>

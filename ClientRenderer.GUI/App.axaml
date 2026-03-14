@@ -1,0 +1,42 @@
+﻿<Application xmlns="https://github.com/avaloniaui"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:local="using:ClientRenderer.GUI"
+			 x:Class="ClientRenderer.GUI.App"
+			 RequestedThemeVariant="Dark">
+	<Application.DataTemplates>
+		<local:ViewLocator />
+	</Application.DataTemplates>
+
+	<Application.Resources>
+		<ResourceDictionary>
+			<ResourceDictionary.MergedDictionaries>
+				<ResourceInclude Source="Styles/Resources/BaseResources.axaml" />
+				<ResourceInclude Source="Styles/Resources/ButtonResources.axaml" />
+				<ResourceInclude Source="Styles/Resources/ConsoleResources.axaml" />
+				<ResourceInclude Source="Styles/Resources/TypographyResources.axaml" />
+			</ResourceDictionary.MergedDictionaries>
+		</ResourceDictionary>
+	</Application.Resources>
+
+	<Application.Styles>
+		<FluentTheme />
+		<StyleInclude Source="Styles/DefaultStyles.axaml"></StyleInclude>
+	</Application.Styles>
+
+	<TrayIcon.Icons>
+		<TrayIcons>
+			<TrayIcon Icon="/Assets/icon.ico"
+					  ToolTipText="Avalonia Tray Icon ToolTip"
+					  IsVisible="true"
+					  Clicked="Tray_OnClick">
+				<TrayIcon.Menu>
+					<NativeMenu>
+						<NativeMenuItem Header="Show" Click="Tray_Show_OnClick" />
+						<NativeMenuItemSeparator />
+						<NativeMenuItem Header="Exit" Click="Tray_Exit_OnClick"/>
+					</NativeMenu>
+				</TrayIcon.Menu>
+			</TrayIcon>
+		</TrayIcons>
+	</TrayIcon.Icons>
+</Application>

@@ -1,0 +1,87 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:vm="using:ClientRenderer.GUI.ViewModels"
+		xmlns:view="clr-namespace:ClientRenderer.GUI.Views"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		mc:Ignorable="d"
+		Width="960" Height="540"
+		MinWidth="640" MinHeight="360"
+		x:Class="ClientRenderer.GUI.Views.MainWindow"
+		x:DataType="vm:MainWindowViewModel"
+		Icon="/Assets/icon.ico"
+		Title="ClientRenderer"
+		Background="Transparent"
+		ExtendClientAreaToDecorationsHint="True"
+		WindowStartupLocation="CenterScreen">
+
+	<Design.DataContext>
+		<!-- This only sets the DataContext for the previewer in an IDE,
+		to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+		<vm:MainWindowViewModel/>
+	</Design.DataContext>
+
+	<Grid RowDefinitions="30, *">
+		<Border Grid.Row="0"
+				Grid.ColumnSpan="2"
+				Height="30"
+				VerticalAlignment="Top"
+				Background="{DynamicResource TopBar.Background}"
+				PointerPressed="TitleBar_OnPointerPressed"
+				x:Name="TitleBar">
+			<Grid>
+				<Border HorizontalAlignment="Center" VerticalAlignment="Center">
+					<Label Classes="topbar">shkx</Label>
+				</Border>
+			</Grid>
+		</Border>
+
+		<Grid ClipToBounds="True" Grid.Row="1" ColumnDefinitions="Auto, 8*">
+			<Rectangle Grid.ColumnSpan="2"
+					   Fill="{StaticResource Background}"
+					   Effect="{StaticResource BackgroundBlur}"
+					   Margin="-5"/>
+			<Border Grid.Column="0"
+					Padding="10"
+					Background="{StaticResource BackgroundGradient}">
+				<Grid RowDefinitions="*, Auto">
+					<StackPanel Spacing="10">
+						<Image Source="/Assets/Images/logo.png"
+							   Width="{Binding LogoWidth}"
+							   HorizontalAlignment="Center"
+							   PointerPressed="Logo_OnPointerPressed">
+						</Image>
+						<Button HorizontalAlignment="Stretch" Command="{Binding GoToHomeCommand}" Classes="icon-button standard" Classes.active="{Binding HomePageIsActive}">
+							<StackPanel Orientation="Horizontal">
+								<Label Classes="icon" Content="&#xe2c2;"></Label>
+								<Label Classes="subtitle" Content="Home" IsVisible="{Binding SideMenuExpanded}"></Label>
+							</StackPanel>
+						</Button>
+						<Button HorizontalAlignment="Stretch" Command="{Binding GoToStatusCommand}" Classes="icon-button standard" Classes.active="{Binding StatusPageIsActive}">
+							<StackPanel Orientation="Horizontal">
+								<Label Classes="icon" Content="&#xe346;"></Label>
+								<Label Classes="subtitle" Content="Status" IsVisible="{Binding SideMenuExpanded}"></Label>
+							</StackPanel>
+						</Button>
+						<Button HorizontalAlignment="Stretch" Command="{Binding GoToConsoleCommand}" Classes="icon-button standard" Classes.active="{Binding ConsolePageIsActive}">
+							<StackPanel Orientation="Horizontal">
+								<Label Classes="icon" Content="&#xeb7a;"></Label>
+								<Label Classes="subtitle" Content="Console" IsVisible="{Binding SideMenuExpanded}"></Label>
+							</StackPanel>
+						</Button>
+					</StackPanel>
+
+					<Button Grid.Row="1" HorizontalAlignment="Left" Command="{Binding GoToSettingsCommand}" Classes="icon-button outline settings-icon-only" Classes.active="{Binding SettingsPageIsActive}">
+						<StackPanel Orientation="Horizontal">
+							<Label Classes="icon" Content="&#xe272;"></Label>
+						</StackPanel>
+					</Button>
+				</Grid>
+			</Border>
+
+			<Border Grid.Column="1" Padding="20">
+				<ContentControl Content="{Binding CurrentPage}"> </ContentControl>
+			</Border>
+		</Grid>
+	</Grid>
+</Window>
