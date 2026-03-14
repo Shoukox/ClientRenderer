@@ -1,11 +1,14 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using ClientRenderer.ViewModels;
 using MsBox.Avalonia;
 
 namespace ClientRenderer.Views
 {
     public partial class MainWindow : Window
     {
+        private ulong timestampOfLastClick = 0;
+        private ulong doubleClickWithinMs = 200; //200ms for double click
         public MainWindow()
         {
             InitializeComponent();
@@ -13,8 +16,8 @@ namespace ClientRenderer.Views
             Closing += (s, e) =>
             {
                 if (e.CloseReason is
-                    WindowCloseReason.ApplicationShutdown 
-                    or WindowCloseReason.OSShutdown 
+                    WindowCloseReason.ApplicationShutdown
+                    or WindowCloseReason.OSShutdown
                     or WindowCloseReason.Undefined)
                 {
                     e.Cancel = false;
@@ -34,18 +37,25 @@ namespace ClientRenderer.Views
 
         private void TitleBar_OnPointerPressed(object? sender, PointerPressedEventArgs e)
         {
-            // Only start move on left-button press
             if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             {
-                // BeginMoveDrag is provided by Window in Avalonia
                 BeginMoveDrag(e);
 
-                // Optional: double-click to toggle maximize
                 if (e.ClickCount == 2)
                 {
                     WindowState = (WindowState == WindowState.Maximized) ? WindowState.Normal : WindowState.Maximized;
                 }
             }
+        }
+
+        private async void Logo_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            ulong msDelta = e.Timestamp - timestampOfLastClick;
+            timestampOfLastClick = e.Timestamp;
+
+            if (msDelta > doubleClickWithinMs) return;
+
+            (DataContext as MainWindowViewModel)?.SideMenuResizeCommand.Execute(null);
         }
     }
 }

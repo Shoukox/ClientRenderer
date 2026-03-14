@@ -1,4 +1,4 @@
-<Application xmlns="https://github.com/avaloniaui"
+﻿<Application xmlns="https://github.com/avaloniaui"
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 x:Class="ClientRenderer.App"
 			 xmlns:local="using:ClientRenderer"
@@ -7,20 +7,78 @@
 		<local:ViewLocator/>
 	</Application.DataTemplates>
 
-	<Application.Styles>
-		<FluentTheme />
-		<StyleInclude Source="Styles/DefaultStyles.axaml"></StyleInclude>
-	</Application.Styles>
-
 	<Application.Resources>
 		<LinearGradientBrush x:Key="BackgroundGradient">
 			<GradientStop Offset="0" Color="#771c5a"></GradientStop>
 			<GradientStop Offset="1" Color="#331c65"></GradientStop>
 		</LinearGradientBrush>
-		<BlurEffect x:Key="BackgroundBlur" Radius="10" />
+		<BlurEffect x:Key="BackgroundBlur" Radius="5" />
 		<ImageBrush x:Key="Background" Source="/Assets/Images/background.png" Stretch="UniformToFill"></ImageBrush>
-		<SolidColorBrush x:Key="PrimaryBackground">#4a1c62</SolidColorBrush>
+		<SolidColorBrush x:Key="DarkPrimaryBackground">#410c54</SolidColorBrush>
+		<SolidColorBrush x:Key="PrimaryBackground">#952b99</SolidColorBrush>
+
+		<SolidColorBrush x:Key="Button.Background">#952b99</SolidColorBrush>
+		<SolidColorBrush x:Key="Button.Foreground">#ECC0FF</SolidColorBrush>
+		<SolidColorBrush x:Key="Button.Background.Hover">#963c99</SolidColorBrush>
+		<SolidColorBrush x:Key="Button.Foreground.Hover">#C15DC4</SolidColorBrush>
+		<SolidColorBrush x:Key="IconButton.ForegroundGradient.Active">#ECC0FF</SolidColorBrush>
+		<SolidColorBrush x:Key="TopBar.Background">#400042</SolidColorBrush>
+
+		<!--Gradient-->
+		<LinearGradientBrush x:Key="Button.BackgroundGradient"
+							 StartPoint="0%, 50%" EndPoint="100%,50%">
+			<GradientStop Offset="0"    Color="#9A2DA6"/>
+			<GradientStop Offset="0.50" Color="#801673"/>
+			<GradientStop Offset="1"    Color="#771C5A"/>
+		</LinearGradientBrush>
+
+		<LinearGradientBrush x:Key="Button.BackgroundGradient.Active"
+							 StartPoint="0%,50%" EndPoint="100%,50%">
+			<GradientStop Offset="0"    Color="#7222A6"/>
+			<GradientStop Offset="0.50" Color="#701673"/>
+			<GradientStop Offset="1"    Color="#471C5A"/>
+		</LinearGradientBrush>
+
+		<LinearGradientBrush x:Key="IconButton.BackgroundGradient"
+							 StartPoint="0%,50%" EndPoint="100%,50%">
+			<GradientStop Offset="0"    Color="#6B1E75"/>
+			<GradientStop Offset="0.50" Color="#682173"/>
+			<GradientStop Offset="1"    Color="#690D4D"/>
+		</LinearGradientBrush>
+
+		<LinearGradientBrush x:Key="IconButton.BackgroundGradient.Active"
+							 StartPoint="0%,50%" EndPoint="100%,50%">
+			<GradientStop Offset="0"    Color="#A700B0"/>
+			<GradientStop Offset="0.50" Color="#6D0773"/>
+			<GradientStop Offset="1"    Color="#600B73"/>
+		</LinearGradientBrush>
+
+		<LinearGradientBrush x:Key="Button.ForegroundGradient" StartPoint="0%, 0%" EndPoint="100%, 0%">
+			<GradientStop Offset="0" Color="#65077A"></GradientStop>
+			<GradientStop Offset="1" Color="#7E1795"></GradientStop>
+		</LinearGradientBrush>
+
+		<LinearGradientBrush x:Key="Button.ForegroundGradient.Border" StartPoint="0%, 0%" EndPoint="100%, 0%">
+			<GradientStop Offset="0" Color="#6633DD"></GradientStop>
+			<GradientStop Offset="1" Color="#831B9F"></GradientStop>
+		</LinearGradientBrush>
+
+		<LinearGradientBrush x:Key="Button.Background.HoverGradient" StartPoint="0%,50%" EndPoint="100%,50%">
+			<GradientStop Offset="0"    Color="#D97AB6"/>
+			<GradientStop Offset="0.50" Color="#B24A8F"/>
+			<GradientStop Offset="1"    Color="#8A2C6E"/>
+		</LinearGradientBrush>
+
+		<FontFamily x:Key="Phosphor">avares://ClientRenderer/Assets/Fonts/Phosphor.ttf#Phosphor</FontFamily>
+		<FontFamily x:Key="PhosphorFill">avares://ClientRenderer/Assets/Fonts/Phosphor-Fill.ttf#Phosphor-Fill</FontFamily>
+		<FontFamily x:Key="NotoSansJP-Regular">avares://ClientRenderer/Assets/Fonts/NotoSansJP-Regular.ttf#Noto Sans JP</FontFamily>
+		<FontFamily x:Key="SLR">avares://ClientRenderer/Assets/Fonts/ShadowsIntoLight-Regular.ttf#Shadows Into Light</FontFamily>
 	</Application.Resources>
+
+	<Application.Styles>
+		<FluentTheme />
+		<StyleInclude Source="Styles/DefaultStyles.axaml"></StyleInclude>
+	</Application.Styles>
 
 	<TrayIcon.Icons>
 		<TrayIcons>
