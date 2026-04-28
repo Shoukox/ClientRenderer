@@ -3,6 +3,7 @@ using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using DanserWrapper;
 using ExperimentalRendererWrapper;
+using ExperimentalRendererWrapper.Configuration;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
@@ -30,7 +31,15 @@ namespace ClientRenderer.RenderPipeline
             if (!await _skinsDownloader.DownloadSkin(info, serverConnection))
                 return false;
 
-            DanserGo.AdjustConfig(info.RenderJob.RenderSettings);
+            if (info.UseExperimentalRenderer)
+            {
+                ExperimentalRenderer.AdjustConfig(ToExperimentalRendererConfiguration(info.RenderJob.RenderSettings));
+            }
+            else
+            {
+                DanserGo.AdjustConfig(ToDanserConfiguration(info.RenderJob.RenderSettings));
+            }
+
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Start rendering");
 
             info.VideoPath = Path.Combine(DanserGo.VideosPath, $"{info.BeatmapHash}.mp4");
@@ -69,6 +78,86 @@ namespace ClientRenderer.RenderPipeline
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering finished");
 
             return true;
+        }
+
+        private static DanserConfiguration ToDanserConfiguration(RenderSettings renderSettings)
+        {
+            return new DanserConfiguration
+            {
+                VideoWidth = renderSettings.VideoWidth,
+                VideoHeight = renderSettings.VideoHeight,
+                Encoder = renderSettings.Encoder,
+                SkinName = renderSettings.SkinName,
+                GeneralVolume = renderSettings.GeneralVolume,
+                MusicVolume = renderSettings.MusicVolume,
+                SampleVolume = renderSettings.SampleVolume,
+                BackgroundDim = renderSettings.BackgroundDim,
+                HitErrorMeter = renderSettings.HitErrorMeter,
+                AimErrorMeter = renderSettings.AimErrorMeter,
+                HPBar = renderSettings.HPBar,
+                ShowPP = renderSettings.ShowPP,
+                HitCounter = renderSettings.HitCounter,
+                IgnoreFailsInReplays = renderSettings.IgnoreFailsInReplays,
+                Video = renderSettings.Video,
+                Storyboard = renderSettings.Storyboard,
+                Mods = renderSettings.Mods,
+                KeyOverlay = renderSettings.KeyOverlay,
+                Combo = renderSettings.Combo,
+                Leaderboard = renderSettings.Leaderboard,
+                StrainGraph = renderSettings.StrainGraph,
+                MotionBlur = renderSettings.MotionBlur,
+            };
+        }
+
+        private static ExperimentalRendererConfiguration ToExperimentalRendererConfiguration(RenderSettings renderSettings)
+        {
+            return new ExperimentalRendererConfiguration
+            {
+                RecordOptions = new RecordOptionsObject
+                {
+                    FrameRate = 60,
+                    Resolution = $"{renderSettings.VideoWidth}x{renderSettings.VideoHeight}",
+                    Renderer = "Auto"
+                },
+                FFmpegOptions = new FFmpegOptionsObject
+                {
+                    Mode = "Pipe",
+                    LibrariesPath = string.Empty,
+                    Executable = "ffmpeg",
+                    VideoEncoder = renderSettings.Encoder,
+                    VideoEncoderPreset = MapExperimentalEncoderPreset(renderSettings.Encoder),
+                    VideoEncoderBitrate = "1M"
+                },
+                OutputOptions = new OutputOptionsObject
+                {
+                    PixelFormat = "RGB"
+                },
+                GameSettings = new GameSettings
+                {
+                    SkipIntro = false,
+                    BackgroundDim = renderSettings.BackgroundDim,
+                    ShowStoryboard = renderSettings.Storyboard || renderSettings.Video,
+                    BeatmapHitsounds = false,
+                    BeatmapSkin = false,
+                    BeatmapColors = false,
+                    VolumeMusic = renderSettings.MusicVolume,
+                    VolumeEffects = renderSettings.SampleVolume,
+                    VolumeMaster = renderSettings.GeneralVolume,
+                    ManiaScrollSpeed = renderSettings.ManiaScrollSpeed,
+                    ManiaScrollDirectionUp = renderSettings.ManiaScrollDirectionUp ? "up" : "down"
+                }
+            };
+        }
+
+        private static string MapExperimentalEncoderPreset(string encoder)
+        {
+            return encoder switch
+            {
+                "h264_nvenc" => "p1",
+                "av1_nvenc" => "p1",
+                "libx264" => "veryfast",
+                _ => "ultrafast"
+            };
         }
 
         public async Task<bool> RenderWithDanser(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken)
@@ -136,15 +225,22 @@ namespace ClientRenderer.RenderPipeline
                 if (info.RenderJob.RenderSettings.SkinName != "default")
                     arguments += $"--skin import \"{info.SkinOskPath}\"";
 
-                var renderTask = new ExperimentalRenderer().ExecuteAsync(arguments, renderUpdates);
+                var renderTask = ExperimentalRenderer.ExecuteAsync(arguments, renderUpdates);
 
                 while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {
                     if (renderUpdates.TryGetValue("Progress", out string? progressString) &&
                         double.TryParse(progressString, out double progress) && progress != 0)
                     {
-                        await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, Math.Min(1.0, progress));
-                        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
+                        try
+                        {
+                            await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, Math.Min(1.0, progress));
+                            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
+                        }
+                        catch
+                        {
+                            continue;
+                        }
                     }
                     await Task.Delay(1000, cancellationToken);
                 }
