@@ -21,17 +21,19 @@ namespace ClientRenderer.GUI.Services
         private static readonly Lazy<RendererService> _instance = new(() => new RendererService());
         private readonly object _sync = new();
         private Task? _runTask;
+        private CancellationTokenSource? _runCancellationTokenSource;
 
         public Task RunTask(string encoder, string serverUrl)
         {
             lock (_sync)
             {
-                _runTask ??= Task.Run(() => RunAsync(encoder, serverUrl));
+                _runCancellationTokenSource ??= new CancellationTokenSource();
+                _runTask ??= Task.Run(() => RunAsync(encoder, serverUrl, _runCancellationTokenSource.Token));
                 return _runTask;
             }
         }
 
-        private async Task RunAsync(string encoder, string serverUrl)
+        private async Task RunAsync(string encoder, string serverUrl, CancellationToken cancellationToken)
         {
             try
             {
@@ -40,8 +42,6 @@ namespace ClientRenderer.GUI.Services
                     .BuildServiceProvider();
 
                 var appConfig = await bootstrapServices.GetRequiredService<IConfigurationLoader>().LoadAsync();
-                var cts = new CancellationTokenSource();
-                var cancellationToken = cts.Token;
 
                 ValidateRenderingDependencies(appConfig.OsuApiV2Configuration.ClientId, appConfig.OsuApiV2Configuration.ClientSecret);
 

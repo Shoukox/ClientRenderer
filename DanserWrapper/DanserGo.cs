@@ -6,7 +6,7 @@ using Newtonsoft.Json;
 
 namespace DanserWrapper;
 
-public class DanserGo
+public static class DanserGo
 {
     public static string DanserGoPath = Path.Combine(AppContext.BaseDirectory, "danser", "danser-cli");
     public readonly static string DanserGoDirectoryPath = Path.GetDirectoryName(DanserGoPath)!;
@@ -14,17 +14,14 @@ public class DanserGo
     public readonly static string ScreenshotsPath = Path.Combine(DanserGoDirectoryPath, "screenshots");
     public readonly static string SongsPath = Path.Combine(DanserGoDirectoryPath, "songs");
 
-    public DanserGo()
+    public static async Task<DanserResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
     {
         if (!DanserExists())
         {
             throw new FileNotFoundException($"danser-go executable was not found at: {DanserGoPath}");
         }
         CreateDirectoriesIfNeeded();
-    }
 
-    public async Task<DanserResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000)
-    {
         var processStartInfo = new ProcessStartInfo
         {
             FileName = DanserGoPath,
@@ -67,10 +64,25 @@ public class DanserGo
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        var completed = await process.WaitForExitAsync(TimeSpan.FromMilliseconds(timeoutMs));
-        if (!completed)
+        using var timeoutCts = new CancellationTokenSource(timeoutMs);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+        try
         {
-            process.Kill();
+            await process.WaitForExitAsync(linkedCts.Token);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (!process.HasExited)
+                process.Kill(true);
+
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited)
+                process.Kill(true);
+
             throw new TimeoutException($"danser-go process timed out after {timeoutMs}ms");
         }
 
@@ -116,12 +128,12 @@ public class DanserGo
         json["Recording"]["libx264"]["Preset"] = "veryfast";
         json["Recording"]["h264_nvenc"]["RateControl"] = "cq";
         json["Recording"]["h264_nvenc"]["Bitrate"] = "4M";
-        json["Recording"]["h264_nvenc"]["CQ"] = 30;
+        json["Recording"]["h264_nvenc"]["VBR"] = 30;
         json["Recording"]["h264_nvenc"]["Profile"] = "main";
         json["Recording"]["h264_nvenc"]["Preset"] = "p1";
         json["Recording"]["av1_nvenc"]["RateControl"] = "cbr";
         json["Recording"]["av1_nvenc"]["Bitrate"] = "4M";
-        json["Recording"]["av1_nvenc"]["CQ"] = 30;
+        json["Recording"]["av1_nvenc"]["VBR"] = 30;
         json["Recording"]["av1_nvenc"]["Preset"] = "p1";
 
         json["Recording"]["MotionBlur"]["Enabled"] = configuration.MotionBlur;

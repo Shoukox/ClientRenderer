@@ -6,6 +6,7 @@ public interface IServerConnection : IAsyncDisposable
 {
     Task<bool> InitializeToken();
     Task<RenderJob?> GetNextRenderJob(int intervalMs = 2000);
+    Task<RenderJob?> GetRenderJobInfo(int jobId);
     Task<byte[]> DownloadReplay(int jobId);
     Task<byte[]> DownloadSkin(string skinFileNameHex);
     Task ReportRenderingProgress(int jobId, double progress);

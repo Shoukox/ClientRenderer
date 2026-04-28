@@ -79,7 +79,7 @@ namespace ClientRenderer.RenderPipeline
             try
             {
                 string arguments = $"-r \"{info.ReplayPath}\" -out \"{Path.GetFileNameWithoutExtension(info.VideoPath)}\" -preciseprogress";
-                Task<DanserResult> renderTask = new DanserGo().ExecuteAsync(arguments, renderUpdates);
+                Task<DanserResult> renderTask = DanserGo.ExecuteAsync(arguments, renderUpdates);
 
                 while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {
@@ -128,8 +128,10 @@ namespace ClientRenderer.RenderPipeline
             ConcurrentDictionary<string, string> renderUpdates = new() { ["BeatmapLength"] = $"{info.BeatmapLength}" };
             try
             {
-                string arguments =
-                    $"--view file \"{info.ReplayPath}\" --import-beatmap \"{info.BeatmapsetOszPath}\" --record --record-output \"{info.VideoPath}\" --yes ";
+                string arguments = $"--yes -ex -pr -R --view file \"{info.ReplayPath}\" " +
+                            $"-osz \"{info.BeatmapsetOszPath}\" " +
+                            $"--config orv_config.json " +
+                            $"-O \"{info.VideoPath}\" -exp pp-counter ";
 
                 if (info.RenderJob.RenderSettings.SkinName != "default")
                     arguments += $"--skin import \"{info.SkinOskPath}\"";
@@ -148,6 +150,11 @@ namespace ClientRenderer.RenderPipeline
                 }
 
                 result = await renderTask;
+            }
+            catch (OperationCanceledException)
+            {
+                Logger.LogWarning($"[JobId:{info.RenderJob!.JobId}] Experimental renderer was cancelled.");
+                throw;
             }
             catch (Exception ex)
             {

@@ -145,6 +145,19 @@ namespace ClientRenderer.Connection
             return renderJob;
         }
 
+        public async Task<RenderJob?> GetRenderJobInfo(int jobId)
+        {
+            using HttpRequestMessage hrm = new HttpRequestMessage();
+            hrm.Method = HttpMethod.Post;
+            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/get-render-job-info?job-id={jobId}");
+            hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return await response.Content.ReadFromJsonAsync<RenderJob>(_cancellationToken);
+        }
+
         public async Task<byte[]> DownloadReplay(int jobId)
         {
             using HttpRequestMessage hrm = new HttpRequestMessage();

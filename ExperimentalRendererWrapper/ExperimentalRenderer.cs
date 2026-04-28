@@ -20,7 +20,7 @@ namespace ExperimentalRendererWrapper
             }
         }
 
-        public async Task<ExperimentalRendererResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000)
+        public async Task<ExperimentalRendererResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
         {
             var processStartInfo = new ProcessStartInfo
             {
@@ -44,7 +44,6 @@ namespace ExperimentalRendererWrapper
                 if (string.IsNullOrWhiteSpace(e.Data))
                     return;
                 outputStringBuilder.AppendLine(e.Data);
-                //Console.WriteLine(e.Data);
 
                 if (e.Data.Contains("Audio decoded in "))
                 {
@@ -58,7 +57,6 @@ namespace ExperimentalRendererWrapper
                 if (string.IsNullOrWhiteSpace(e.Data))
                     return;
                 errorStringBuilder.AppendLine(e.Data);
-                //Console.WriteLine(e.Data);
 
                 // Match progress
                 var matchProgress = progressRegex.Match(e.Data);
@@ -79,10 +77,25 @@ namespace ExperimentalRendererWrapper
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            var completed = await process.WaitForExitAsync(TimeSpan.FromMilliseconds(timeoutMs));
-            if (!completed)
+            using var timeoutCts = new CancellationTokenSource(timeoutMs);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            try
             {
-                process.Kill();
+                await process.WaitForExitAsync(linkedCts.Token);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (!process.HasExited)
+                    process.Kill(true);
+
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                if (!process.HasExited)
+                    process.Kill(true);
+
                 throw new TimeoutException($"Experimental renderer process timed out after {timeoutMs}ms");
             }
 
