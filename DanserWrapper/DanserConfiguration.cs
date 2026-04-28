@@ -29,5 +29,7 @@ namespace DanserWrapper
         public bool StrainGraph { get; set; } = true;
         public bool MotionBlur { get; set; } = false;
         public bool UseExperimentalRenderer { get; set; } = false;
+        public double ManiaScrollSpeed { get; set; } = 25.0;
+        public bool ManiaScrollDirectionUp { get; set; } = false;
     }
 }

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.ViewModels;
 using ClientRenderer.GUI.Views;
 using System;
@@ -27,6 +28,8 @@ namespace ClientRenderer.GUI
                     DataContext = new MainWindowViewModel(),
                 };
                 desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+                RendererService.Instance.RunTask("h264_nvenc", "https://sosubot.shoukko.de");
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -34,11 +37,9 @@ namespace ClientRenderer.GUI
 
         private void DisableAvaloniaDataAnnotationValidation()
         {
-            // Get an array of plugins to remove
             var dataValidationPluginsToRemove =
                 BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
 
-            // remove each entry found
             foreach (var plugin in dataValidationPluginsToRemove)
             {
                 BindingPlugins.DataValidators.Remove(plugin);

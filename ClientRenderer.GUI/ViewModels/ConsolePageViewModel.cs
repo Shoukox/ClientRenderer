@@ -1,5 +1,7 @@
 using System;
 using System.Text;
+using Avalonia.Threading;
+using ClientRenderer.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -7,6 +9,8 @@ namespace ClientRenderer.GUI.ViewModels
 {
     public partial class ConsolePageViewModel : ViewModelBase
     {
+        public static ConsolePageViewModel Instance { get; } = new();
+
         private readonly StringBuilder _consoleBuffer = new();
 
         [ObservableProperty]
@@ -15,11 +19,12 @@ namespace ClientRenderer.GUI.ViewModels
         [ObservableProperty]
         private string _consoleText = string.Empty;
 
-        private string _initialText = $"There is nothing in there. You would probably start the application firstly.";
+        private readonly string _initialText = "There is nothing in there. You would probably start the application firstly.";
 
-        public ConsolePageViewModel()
+        private ConsolePageViewModel()
         {
             AddInitialLine();
+            Logger.MessageLogged += OnMessageLogged;
         }
 
         public void AddInitialLine()
@@ -36,6 +41,17 @@ namespace ClientRenderer.GUI.ViewModels
         {
             _consoleBuffer.Clear();
             ConsoleText = string.Empty;
+        }
+
+        private void OnMessageLogged(string text)
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                AddLine(text);
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() => AddLine(text));
         }
 
         private void AppendRawLine(string line)

@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace ClientRenderer.GUI.ViewModels
@@ -18,7 +18,7 @@ namespace ClientRenderer.GUI.ViewModels
 
         private readonly HomePageViewModel _homePage = new();
         private readonly StatusPageViewModel _statusPage = new();
-        private readonly ConsolePageViewModel _consolePage = new();
+        private readonly ConsolePageViewModel _consolePage = ConsolePageViewModel.Instance;
         private readonly SettingsPageViewModel _settingsPage = new();
 
         public bool HomePageIsActive => CurrentPage == _homePage;
