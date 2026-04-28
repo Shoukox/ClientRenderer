@@ -7,8 +7,36 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="ClientRenderer.GUI.Views.SettingsPageView">
     <Design.DataContext>
-        <UserControl></UserControl>
+        <vm:SettingsPageViewModel />
     </Design.DataContext>
 
-  Welcome to Settings!
+    <StackPanel Spacing="16">
+        <TextBlock Text="Settings"
+                   FontSize="24"
+                   FontWeight="SemiBold" />
+
+        <Border Padding="16" CornerRadius="12">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Run on system startup"
+                                   FontSize="16"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="Start ClientRenderer automatically when you sign in to Windows."
+                                   Opacity="0.75"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ToggleSwitch Grid.Column="1"
+                                  VerticalAlignment="Center"
+                                  IsChecked="{Binding RunOnSystemStartup}"
+                                  IsEnabled="{Binding StartupSettingSupported}" />
+                </Grid>
+
+                <TextBlock Text="{Binding StartupSettingStatus}"
+                           Opacity="0.75"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
 </UserControl>
