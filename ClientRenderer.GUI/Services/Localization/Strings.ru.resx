@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="App.Title" xml:space="preserve"><value>ClientRenderer</value></data>
+  <data name="Tray.Tooltip" xml:space="preserve"><value>ClientRenderer</value></data>
+  <data name="Tray.Show" xml:space="preserve"><value>Показать</value></data>
+  <data name="Tray.Exit" xml:space="preserve"><value>Выход</value></data>
+  <data name="Nav.Console" xml:space="preserve"><value>Консоль</value></data>
+  <data name="Nav.Settings" xml:space="preserve"><value>Настройки</value></data>
+  <data name="Page.Console.Title" xml:space="preserve"><value>консоль client renderer</value></data>
+  <data name="Page.Home.Placeholder" xml:space="preserve"><value>Здесь пока ничего нет! (Shoukko всё ещё нужно поработать над этой программой)</value></data>
+  <data name="Page.Status.Placeholder" xml:space="preserve"><value>Добро пожаловать в Status!</value></data>
+  <data name="Settings.Title" xml:space="preserve"><value>Настройки</value></data>
+  <data name="Settings.Language.Title" xml:space="preserve"><value>Язык</value></data>
+  <data name="Settings.Language.Description" xml:space="preserve"><value>Выберите язык интерфейса ClientRenderer.</value></data>
+  <data name="Settings.RunOnStartup.Title" xml:space="preserve"><value>Запускать вместе с системой</value></data>
+  <data name="Settings.RunOnStartup.Description" xml:space="preserve"><value>Автоматически запускать ClientRenderer после входа в Windows.</value></data>
+  <data name="Settings.RunOnStartup.Enabled" xml:space="preserve"><value>ClientRenderer будет автоматически запускаться после входа в Windows.</value></data>
+  <data name="Settings.RunOnStartup.Disabled" xml:space="preserve"><value>ClientRenderer не будет автоматически запускаться вместе с Windows.</value></data>
+  <data name="Settings.RunOnStartup.Unsupported" xml:space="preserve"><value>Эта опция доступна только в Windows.</value></data>
+  <data name="Settings.RunOnStartup.Failed" xml:space="preserve"><value>Не удалось обновить параметр автозапуска: {0}</value></data>
+  <data name="Settings.MinimizeInsteadOfClosing.Title" xml:space="preserve"><value>Сворачивать вместо закрытия</value></data>
+  <data name="Settings.MinimizeInsteadOfClosing.Description" xml:space="preserve"><value>Сворачивать ClientRenderer в системный трей вместо закрытия при нажатии на кнопку закрытия.</value></data>
+</root>

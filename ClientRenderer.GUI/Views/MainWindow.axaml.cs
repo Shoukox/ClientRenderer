@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using ClientRenderer.GUI.ViewModels;
-using MsBox.Avalonia;
 
 namespace ClientRenderer.GUI.Views
 {
@@ -9,6 +8,7 @@ namespace ClientRenderer.GUI.Views
     {
         private ulong timestampOfLastClick = 0;
         private ulong doubleClickWithinMs = 200; //200ms for double click
+
         public MainWindow()
         {
             InitializeComponent();
@@ -21,18 +21,18 @@ namespace ClientRenderer.GUI.Views
                     or WindowCloseReason.Undefined)
                 {
                     e.Cancel = false;
+                    return;
                 }
-                else
+
+                if (App.SettingsProvider.Current.MinimizeInsteadOfClosing)
                 {
                     Hide();
                     e.Cancel = true;
+                    return;
                 }
-            };
-        }
 
-        public async void HomeButton_OnClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            await MessageBoxManager.GetMessageBoxStandard("Info", "Home button clicked!").ShowAsPopupAsync(this);
+                e.Cancel = false;
+            };
         }
 
         private void TitleBar_OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -48,7 +48,7 @@ namespace ClientRenderer.GUI.Views
             }
         }
 
-        private async void Logo_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+        private void Logo_OnPointerPressed(object? sender, PointerPressedEventArgs e)
         {
             ulong msDelta = e.Timestamp - timestampOfLastClick;
             timestampOfLastClick = e.Timestamp;

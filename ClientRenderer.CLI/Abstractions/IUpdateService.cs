@@ -1,4 +1,4 @@
-namespace ClientRenderer.Abstractions;
+namespace ClientRenderer.CLI.Abstractions;
 
 public interface IUpdateService
 {

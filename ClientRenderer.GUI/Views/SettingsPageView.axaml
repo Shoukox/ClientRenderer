@@ -1,42 +1,82 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:ClientRenderer.GUI.ViewModels"
-             x:DataType="vm:SettingsPageViewModel"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="ClientRenderer.GUI.Views.SettingsPageView">
-    <Design.DataContext>
-        <vm:SettingsPageViewModel />
-    </Design.DataContext>
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 xmlns:vm="clr-namespace:ClientRenderer.GUI.ViewModels"
+			 xmlns:app="using:ClientRenderer.GUI"
+			 x:DataType="vm:SettingsPageViewModel"
+			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+			 x:Class="ClientRenderer.GUI.Views.SettingsPageView">
+	<Design.DataContext>
+		<vm:SettingsPageViewModel />
+	</Design.DataContext>
 
-    <StackPanel Spacing="16">
-        <TextBlock Text="Settings"
-                   FontSize="24"
-                   FontWeight="SemiBold" />
+	<StackPanel Spacing="16">
+		<TextBlock Text="{Binding Source={x:Static app:App.Localizer}, Path=[Settings.Title]}"
+				   FontSize="24"
+				   FontWeight="SemiBold" />
 
-        <Border Padding="16" CornerRadius="12">
-            <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Run on system startup"
-                                   FontSize="16"
-                                   FontWeight="SemiBold" />
-                        <TextBlock Text="Start ClientRenderer automatically when you sign in to Windows."
-                                   Opacity="0.75"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+		<Border Padding="16" CornerRadius="12">
+			<StackPanel Spacing="10">
+				<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="16">
+					<StackPanel Spacing="4" Grid.Column="0" Grid.Row="0">
+						<TextBlock Text="{Binding Source={x:Static app:App.Localizer}, Path=[Settings.Language.Title]}"
+								   FontSize="16"
+								   FontWeight="SemiBold" />
+						<TextBlock Text="{Binding Source={x:Static app:App.Localizer}, Path=[Settings.Language.Description]}"
+								   Opacity="0.75"
+								   TextWrapping="Wrap" />
+					</StackPanel>
 
-                    <ToggleSwitch Grid.Column="1"
-                                  VerticalAlignment="Center"
-                                  IsChecked="{Binding RunOnSystemStartup}"
-                                  IsEnabled="{Binding StartupSettingSupported}" />
-                </Grid>
+					<ComboBox Grid.Column="1"
+						  Width="160"
+						  VerticalAlignment="Center"
+						  ItemsSource="{Binding SupportedLanguages}"
+						  SelectedItem="{Binding SelectedLanguage}">
+						<ComboBox.ItemTemplate>
+							<DataTemplate>
+								<TextBlock Text="{Binding DisplayName}" />
+							</DataTemplate>
+						</ComboBox.ItemTemplate>
+					</ComboBox>
+				</Grid>
 
-                <TextBlock Text="{Binding StartupSettingStatus}"
-                           Opacity="0.75"
-                           TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
-    </StackPanel>
+				<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto, Auto" ColumnSpacing="16">
+					<StackPanel Spacing="4" Grid.Column="0" Grid.Row="0">
+						<TextBlock Text="{Binding Source={x:Static app:App.Localizer}, Path=[Settings.RunOnStartup.Title]}"
+								   FontSize="16"
+								   FontWeight="SemiBold" />
+						<TextBlock Text="{Binding Source={x:Static app:App.Localizer}, Path=[Settings.RunOnStartup.Description]}"
+								   Opacity="0.75"
+								   TextWrapping="Wrap" />
+					</StackPanel>
+
+					<ToggleSwitch Grid.Column="1"
+							  VerticalAlignment="Center"
+							  IsChecked="{Binding RunOnSystemStartup}"
+							  IsEnabled="{Binding StartupSettingSupported}" />
+
+					<TextBlock Grid.Column="0" Grid.Row="1" Text="{Binding StartupSettingStatus}"
+							   Foreground="{Binding StartupSettingStatusColor}"
+							   Opacity="0.75"
+							   TextWrapping="Wrap" />
+				</Grid>
+
+				<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto, Auto" ColumnSpacing="16">
+					<StackPanel Spacing="4" Grid.Column="0" Grid.Row="0">
+						<TextBlock Text="{Binding Source={x:Static app:App.Localizer}, Path=[Settings.MinimizeInsteadOfClosing.Title]}"
+								   FontSize="16"
+								   FontWeight="SemiBold" />
+						<TextBlock Text="{Binding Source={x:Static app:App.Localizer}, Path=[Settings.MinimizeInsteadOfClosing.Description]}"
+								   Opacity="0.75"
+								   TextWrapping="Wrap" />
+					</StackPanel>
+
+					<ToggleSwitch Grid.Column="1"
+							  VerticalAlignment="Center"
+							  IsChecked="{Binding MinimizeInsteadOfClosing}" />
+				</Grid>
+			</StackPanel>
+		</Border>
+	</StackPanel>
 </UserControl>

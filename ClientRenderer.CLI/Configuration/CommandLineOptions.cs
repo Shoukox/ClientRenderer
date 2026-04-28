@@ -1,6 +1,6 @@
 ﻿using CommandLine;
 
-namespace ClientRenderer.Models
+namespace ClientRenderer.CLI.Configuration
 {
     public class CommandLineOptions
     {

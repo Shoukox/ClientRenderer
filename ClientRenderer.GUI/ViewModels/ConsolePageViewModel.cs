@@ -1,9 +1,13 @@
-using System;
-using System.Text;
+using Avalonia.Media;
 using Avalonia.Threading;
+using ClientRenderer.GUI.Services.Localization;
 using ClientRenderer.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ClientRenderer.GUI.ViewModels
 {
@@ -12,24 +16,28 @@ namespace ClientRenderer.GUI.ViewModels
         public static ConsolePageViewModel Instance { get; } = new();
 
         private readonly StringBuilder _consoleBuffer = new();
+        private readonly LocalizationService _localizer = App.Localizer;
 
         [ObservableProperty]
-        private string _title = "client renderer console";
+        private string _title = string.Empty;
 
         [ObservableProperty]
         private string _consoleText = string.Empty;
 
-        private readonly string _initialText = "There is nothing in there. You would probably start the application firstly.";
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CopyIcon))]
+        [NotifyPropertyChangedFor(nameof(CopyIconBrush))]
+        private bool _isCopied;
+
+        private CancellationTokenSource? _copyFeedbackCts;
+        public string CopyIcon => IsCopied ? "\u2713" : "\u2398";
+        public IBrush CopyIconBrush => IsCopied ? Brushes.LimeGreen : Brushes.White;
 
         private ConsolePageViewModel()
         {
-            AddInitialLine();
+            UpdateLocalizedText();
+            _localizer.LanguageChanged += (_, _) => UpdateLocalizedText();
             Logger.MessageLogged += OnMessageLogged;
-        }
-
-        public void AddInitialLine()
-        {
-            AppendRawLine(_initialText);
         }
 
         public void AddLine(string text)
@@ -41,6 +49,11 @@ namespace ClientRenderer.GUI.ViewModels
         {
             _consoleBuffer.Clear();
             ConsoleText = string.Empty;
+        }
+
+        private void UpdateLocalizedText()
+        {
+            Title = _localizer["Page.Console.Title"];
         }
 
         private void OnMessageLogged(string text)
@@ -66,9 +79,29 @@ namespace ClientRenderer.GUI.ViewModels
         }
 
         [RelayCommand]
-        private void CopyConsole()
+        private Task CopyConsole()
         {
-            Helpers.Clipboard.Get()?.SetTextAsync(ConsoleText);
+            _ = CopyConsoleCoreAsync();
+            return Task.CompletedTask;
+        }
+
+        private async Task CopyConsoleCoreAsync()
+        {
+            await Helpers.Clipboard.Get()!.SetTextAsync(ConsoleText);
+
+            _copyFeedbackCts?.Cancel();
+            _copyFeedbackCts = new CancellationTokenSource();
+            var token = _copyFeedbackCts.Token;
+            IsCopied = true;
+
+            try
+            {
+                await Task.Delay(1000, token);
+                IsCopied = false;
+            }
+            catch (TaskCanceledException)
+            {
+            }
         }
     }
 }

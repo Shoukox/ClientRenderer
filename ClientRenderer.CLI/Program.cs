@@ -1,7 +1,9 @@
 using ClientRenderer.Abstractions;
+using ClientRenderer.CLI.Abstractions;
+using ClientRenderer.CLI.Configuration;
+using ClientRenderer.CLI.Startup;
 using ClientRenderer.Connection;
 using ClientRenderer.Logging;
-using ClientRenderer.Models;
 using ClientRenderer.Render;
 using ClientRenderer.RenderPipeline;
 using ClientRenderer.Startup;

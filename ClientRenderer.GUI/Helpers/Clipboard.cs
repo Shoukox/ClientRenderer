@@ -6,7 +6,7 @@ using Avalonia.VisualTree;
 
 namespace ClientRenderer.GUI.Helpers;
 
-public class Clipboard
+public static class Clipboard
 {
     public static IClipboard Get()
     {

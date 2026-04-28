@@ -30,7 +30,7 @@ namespace ClientRenderer.GUI.ViewModels
 
         public MainWindowViewModel()
         {
-            CurrentPage = _homePage;
+            CurrentPage = _consolePage; // console page is default for now
         }
 
 

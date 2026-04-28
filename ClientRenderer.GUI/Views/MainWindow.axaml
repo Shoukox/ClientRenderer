@@ -1,23 +1,22 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
 		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 		xmlns:vm="using:ClientRenderer.GUI.ViewModels"
 		xmlns:view="clr-namespace:ClientRenderer.GUI.Views"
 		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:app="using:ClientRenderer.GUI"
 		mc:Ignorable="d"
 		Width="960" Height="540"
 		MinWidth="640" MinHeight="360"
 		x:Class="ClientRenderer.GUI.Views.MainWindow"
 		x:DataType="vm:MainWindowViewModel"
 		Icon="/Assets/icon.ico"
-		Title="ClientRenderer"
+		Title="{Binding Source={x:Static app:App.Localizer}, Path=[App.Title]}"
 		Background="Transparent"
 		ExtendClientAreaToDecorationsHint="True"
 		WindowStartupLocation="CenterScreen">
 
 	<Design.DataContext>
-		<!-- This only sets the DataContext for the previewer in an IDE,
-		to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
 		<vm:MainWindowViewModel/>
 	</Design.DataContext>
 
@@ -51,22 +50,10 @@
 							   HorizontalAlignment="Center"
 							   PointerPressed="Logo_OnPointerPressed">
 						</Image>
-						<Button HorizontalAlignment="Stretch" Command="{Binding GoToHomeCommand}" Classes="icon-button standard" Classes.active="{Binding HomePageIsActive}">
-							<StackPanel Orientation="Horizontal">
-								<Label Classes="icon" Content="&#xe2c2;"></Label>
-								<Label Classes="subtitle" Content="Home" IsVisible="{Binding SideMenuExpanded}"></Label>
-							</StackPanel>
-						</Button>
-						<Button HorizontalAlignment="Stretch" Command="{Binding GoToStatusCommand}" Classes="icon-button standard" Classes.active="{Binding StatusPageIsActive}">
-							<StackPanel Orientation="Horizontal">
-								<Label Classes="icon" Content="&#xe346;"></Label>
-								<Label Classes="subtitle" Content="Status" IsVisible="{Binding SideMenuExpanded}"></Label>
-							</StackPanel>
-						</Button>
 						<Button HorizontalAlignment="Stretch" Command="{Binding GoToConsoleCommand}" Classes="icon-button standard" Classes.active="{Binding ConsolePageIsActive}">
 							<StackPanel Orientation="Horizontal">
 								<Label Classes="icon" Content="&#xeb7a;"></Label>
-								<Label Classes="subtitle" Content="Console" IsVisible="{Binding SideMenuExpanded}"></Label>
+								<Label Classes="subtitle" Content="{Binding Source={x:Static app:App.Localizer}, Path=[Nav.Console]}" IsVisible="{Binding SideMenuExpanded}"></Label>
 							</StackPanel>
 						</Button>
 					</StackPanel>
@@ -74,6 +61,7 @@
 					<Button Grid.Row="1" HorizontalAlignment="Left" Command="{Binding GoToSettingsCommand}" Classes="icon-button outline settings-icon-only" Classes.active="{Binding SettingsPageIsActive}">
 						<StackPanel Orientation="Horizontal">
 							<Label Classes="icon" Content="&#xe272;"></Label>
+							<Label Classes="subtitle" Content="{Binding Source={x:Static app:App.Localizer}, Path=[Nav.Settings]}" IsVisible="{Binding SideMenuExpanded}"></Label>
 						</StackPanel>
 					</Button>
 				</Grid>

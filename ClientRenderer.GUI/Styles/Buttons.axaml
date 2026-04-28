@@ -4,7 +4,6 @@
 		<Setter Property="CornerRadius" Value="5" />
 	</Style>
 
-	<!-- Shared transitions -->
 	<Style Selector="Button.standard /template/ ContentPresenter, Button.outline /template/ ContentPresenter">
 		<Setter Property="Transitions">
 			<Transitions>
@@ -48,9 +47,4 @@
 	<Style Selector="Button.standard.active /template/ ContentPresenter">
 		<Setter Property="Background" Value="{DynamicResource Button.BackgroundGradient.Active}" />
 	</Style>
-
-	<Style Selector="Button.copyconsole-button /template/ ContentPresenter">
-		<Setter Property="FontSize" Value="20" />
-	</Style>
-
 </Styles>

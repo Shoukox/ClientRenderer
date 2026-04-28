@@ -41,8 +41,15 @@
 
 	<Style Selector="TextBlock.copyconsole-icon">
 		<Setter Property="FontSize" Value="16" />
+		<Setter Property="Width" Value="16" />
+		<Setter Property="Height" Value="16" />
 		<Setter Property="VerticalAlignment" Value="Center" />
 		<Setter Property="HorizontalAlignment" Value="Center" />
 		<Setter Property="Foreground" Value="{DynamicResource Console.Title}" />
+		<Setter Property="Transitions">
+			<Transitions>
+				<BrushTransition Property="Foreground" Duration="0:0:0.15"/>
+			</Transitions>
+		</Setter>
 	</Style>
 </Styles>

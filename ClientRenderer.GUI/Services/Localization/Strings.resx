@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App.Title" xml:space="preserve"><value>ClientRenderer</value></data>
+  <data name="Tray.Tooltip" xml:space="preserve"><value>ClientRenderer</value></data>
+  <data name="Tray.Show" xml:space="preserve"><value>Show</value></data>
+  <data name="Tray.Exit" xml:space="preserve"><value>Exit</value></data>
+  <data name="Nav.Console" xml:space="preserve"><value>Console</value></data>
+  <data name="Nav.Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="Page.Console.Title" xml:space="preserve"><value>client renderer console</value></data>
+  <data name="Page.Home.Placeholder" xml:space="preserve"><value>There is nothing here yet! (Shoukko still needs to work on this program)</value></data>
+  <data name="Page.Status.Placeholder" xml:space="preserve"><value>Welcome to Status!</value></data>
+  <data name="Settings.Title" xml:space="preserve"><value>Settings</value></data>
+  <data name="Settings.Language.Title" xml:space="preserve"><value>Language</value></data>
+  <data name="Settings.Language.Description" xml:space="preserve"><value>Choose the display language for ClientRenderer.</value></data>
+  <data name="Settings.RunOnStartup.Title" xml:space="preserve"><value>Run on system startup</value></data>
+  <data name="Settings.RunOnStartup.Description" xml:space="preserve"><value>Start ClientRenderer automatically when you sign in to Windows.</value></data>
+  <data name="Settings.RunOnStartup.Enabled" xml:space="preserve"><value>ClientRenderer will start automatically after you sign in to Windows.</value></data>
+  <data name="Settings.RunOnStartup.Disabled" xml:space="preserve"><value>ClientRenderer will not start automatically with Windows.</value></data>
+  <data name="Settings.RunOnStartup.Unsupported" xml:space="preserve"><value>This option is only available on Windows.</value></data>
+  <data name="Settings.RunOnStartup.Failed" xml:space="preserve"><value>Failed to update startup setting: {0}</value></data>
+  <data name="Settings.MinimizeInsteadOfClosing.Title" xml:space="preserve"><value>Minimize instead of closing</value></data>
+  <data name="Settings.MinimizeInsteadOfClosing.Description" xml:space="preserve"><value>Minimize ClientRenderer to the system tray instead of closing it when you click the close button.</value></data>
+</root>

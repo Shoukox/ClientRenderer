@@ -1,9 +1,9 @@
-using ClientRenderer.Abstractions;
+using ClientRenderer.CLI.Abstractions;
 using ClientRenderer.Logging;
 using Velopack;
 using Velopack.Sources;
 
-namespace ClientRenderer.Startup;
+namespace ClientRenderer.CLI.Startup;
 
 public sealed class UpdateService : IUpdateService
 {

@@ -13,15 +13,18 @@
 					<TextBlock VerticalAlignment="Center" Classes="console-title"
 							   Text="{Binding Title}" Grid.Column="0"/>
 					<Button Command="{Binding CopyConsoleCommand}" Classes="copyconsole-button" Grid.Column="2">
-						<TextBlock Classes="copyconsole-icon" Text="&#x2398;" />
+						<TextBlock Classes="copyconsole-icon" Text="{Binding CopyIcon}" Foreground="{Binding CopyIconBrush}" />
 					</Button>
 				</Grid>
 			</Border>
-
-			<SelectableTextBlock Grid.Row="1"
-								 Classes="console-output"
-								 Text="{Binding ConsoleText}"
-								 TextWrapping="Wrap" />
+			<ScrollViewer VerticalScrollBarVisibility="Visible"
+						  HorizontalScrollBarVisibility="Disabled"
+						  Grid.Row="1">
+				<SelectableTextBlock 
+									 Classes="console-output"
+									 Text="{Binding ConsoleText}"
+									 TextWrapping="Wrap" />
+			</ScrollViewer>
 		</Grid>
 	</Border>
 </UserControl>
