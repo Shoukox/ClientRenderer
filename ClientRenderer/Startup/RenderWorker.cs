@@ -6,13 +6,18 @@ namespace ClientRenderer.Startup;
 
 public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection serverConnection, string chosenEncoder) : IRenderWorker
 {
+    private static async Task<bool> IsServerCancelledAsync(int jobId, IServerConnection serverConnection)
+    {
+        var renderJob = await serverConnection.GetRenderJobInfo(jobId);
+        return renderJob is { IsComplete: true, IsSuccess: false } &&
+               string.Equals(renderJob.FailureReason, "Cancelled", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task MonitorRenderCancellationAsync(int jobId, IServerConnection serverConnection, CancellationTokenSource renderCancellationTokenSource)
     {
         while (!renderCancellationTokenSource.IsCancellationRequested)
         {
-            var renderJob = await serverConnection.GetRenderJobInfo(jobId);
-            if (renderJob is { IsComplete: true, IsSuccess: false } &&
-                string.Equals(renderJob.FailureReason, "Cancelled", StringComparison.OrdinalIgnoreCase))
+            if (await IsServerCancelledAsync(jobId, serverConnection))
             {
                 Logger.LogWarning($"[JobId:{jobId}] Server marked render as cancelled. Stopping local process...");
                 renderCancellationTokenSource.Cancel();
@@ -42,6 +47,12 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
 
                 if (renderJob is null)
                     break;
+
+                if (await IsServerCancelledAsync(renderJob.JobId, serverConnection))
+                {
+                    Logger.LogWarning($"[JobId:{renderJob.JobId}] Job was cancelled before rendering started. Skipping...");
+                    continue;
+                }
 
                 Logger.Log($"[JobId:{renderJob.JobId}] New render job received!");
 
@@ -82,6 +93,7 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                 if (info?.RenderJob != null)
                 {
                     Logger.LogWarning($"[JobId:{info.RenderJob.JobId}] Render was cancelled by the server.");
+                    info = null;
                     continue;
                 }
 
@@ -91,6 +103,13 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
             {
                 if (info?.RenderJob != null)
                 {
+                    if (await IsServerCancelledAsync(info.RenderJob.JobId, serverConnection))
+                    {
+                        Logger.LogWarning($"[JobId:{info.RenderJob.JobId}] Job was cancelled before rendering could proceed. Suppressing error.");
+                        info = null;
+                        continue;
+                    }
+
                     try
                     {
                         await serverConnection.Failure(info.RenderJob.JobId, e.Message, false);
@@ -104,6 +123,10 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                 }
 
                 Logger.LogError(e.ToString());
+            }
+            finally
+            {
+                info = null;
             }
         }
     }
