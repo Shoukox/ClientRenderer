@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "ClientRenderer.GUI": {
+      "commandName": "Project"
+    }
+  }
+}

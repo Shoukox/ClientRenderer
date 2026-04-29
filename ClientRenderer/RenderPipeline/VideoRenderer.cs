@@ -117,8 +117,8 @@ namespace ClientRenderer.RenderPipeline
                 FFmpegOptions = new FFmpegOptionsObject
                 {
                     Mode = "Pipe",
-                    LibrariesPath = "ffmpeg",
-                    Executable = "ffmpeg",
+                    LibrariesPath = Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg"),
+                    Executable = Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe"),
                     VideoEncoder = renderSettings.Encoder,
                     VideoEncoderPreset = MapExperimentalEncoderPreset(renderSettings.Encoder),
                     VideoEncoderBitrate = "5M"

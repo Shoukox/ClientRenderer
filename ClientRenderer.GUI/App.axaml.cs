@@ -46,9 +46,17 @@ namespace ClientRenderer.GUI
                 };
                 desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
 
+                bool hidden = false;
                 if (desktop.Args?.Contains("--startup") == true)
                 {
-                    desktop.MainWindow.Opened += (_, _) => desktop.MainWindow.Hide();
+                    desktop.MainWindow.Opened += (_, _) =>
+                    {
+                        if (!hidden)
+                        {
+                            desktop.MainWindow.Hide();
+                            hidden = true;
+                        }
+                    };
                 }
 
                 SingleInstance?.RegisterActivationHandler(() => ShowAndActivateMainWindow(desktop));
