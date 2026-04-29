@@ -1,27 +1,234 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
-  <resheader name="version"><value>2.0</value></resheader>
-  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
-  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
-  <data name="App.Title" xml:space="preserve"><value>ClientRenderer</value></data>
-  <data name="Tray.Tooltip" xml:space="preserve"><value>ClientRenderer</value></data>
-  <data name="Tray.Show" xml:space="preserve"><value>Anzeigen</value></data>
-  <data name="Tray.Exit" xml:space="preserve"><value>Beenden</value></data>
-  <data name="Nav.Console" xml:space="preserve"><value>Konsole</value></data>
-  <data name="Nav.Settings" xml:space="preserve"><value>Einstellungen</value></data>
-  <data name="Page.Console.Title" xml:space="preserve"><value>client renderer konsole</value></data>
-  <data name="Page.Home.Placeholder" xml:space="preserve"><value>Hier gibt es noch nichts! (Shoukko muss noch an diesem Programm arbeiten)</value></data>
-  <data name="Page.Status.Placeholder" xml:space="preserve"><value>Willkommen bei Status!</value></data>
-  <data name="Settings.Title" xml:space="preserve"><value>Einstellungen</value></data>
-  <data name="Settings.Language.Title" xml:space="preserve"><value>Sprache</value></data>
-  <data name="Settings.Language.Description" xml:space="preserve"><value>Wähle die Anzeigesprache für ClientRenderer aus.</value></data>
-  <data name="Settings.RunOnStartup.Title" xml:space="preserve"><value>Beim Systemstart ausführen</value></data>
-  <data name="Settings.RunOnStartup.Description" xml:space="preserve"><value>ClientRenderer automatisch starten, wenn du dich bei Windows anmeldest.</value></data>
-  <data name="Settings.RunOnStartup.Enabled" xml:space="preserve"><value>ClientRenderer wird nach der Windows-Anmeldung automatisch gestartet.</value></data>
-  <data name="Settings.RunOnStartup.Disabled" xml:space="preserve"><value>ClientRenderer wird nicht automatisch mit Windows gestartet.</value></data>
-  <data name="Settings.RunOnStartup.Unsupported" xml:space="preserve"><value>Diese Option ist nur unter Windows verfügbar.</value></data>
-  <data name="Settings.RunOnStartup.Failed" xml:space="preserve"><value>Startoption konnte nicht aktualisiert werden: {0}</value></data>
-  <data name="Settings.MinimizeInsteadOfClosing.Title" xml:space="preserve"><value>Statt Schließen minimieren</value></data>
-  <data name="Settings.MinimizeInsteadOfClosing.Description" xml:space="preserve"><value>ClientRenderer in den Infobereich minimieren, statt ihn beim Klick auf Schließen zu beenden.</value></data>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App.Title" xml:space="preserve">
+    <value>ClientRenderer</value>
+  </data>
+  <data name="Tray.Tooltip" xml:space="preserve">
+    <value>ClientRenderer</value>
+  </data>
+  <data name="Tray.Show" xml:space="preserve">
+    <value>Anzeigen</value>
+  </data>
+  <data name="Tray.Exit" xml:space="preserve">
+    <value>Beenden</value>
+  </data>
+  <data name="Nav.Console" xml:space="preserve">
+    <value>Konsole</value>
+  </data>
+  <data name="Nav.Settings" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="Page.Console.Title" xml:space="preserve">
+    <value>SosuBot.ClientRenderer console</value>
+  </data>
+  <data name="Page.Home.Placeholder" xml:space="preserve">
+    <value>Hier gibt es noch nichts! (Shoukko muss noch an diesem Programm arbeiten)</value>
+  </data>
+  <data name="Page.Status.Placeholder" xml:space="preserve">
+    <value>Willkommen bei Status!</value>
+  </data>
+  <data name="Settings.Title" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="Settings.Language.Title" xml:space="preserve">
+    <value>Sprache</value>
+  </data>
+  <data name="Settings.Language.Description" xml:space="preserve">
+    <value>Wähle die Anzeigesprache für ClientRenderer aus.</value>
+  </data>
+  <data name="Settings.RunOnStartup.Title" xml:space="preserve">
+    <value>Beim Systemstart ausführen</value>
+  </data>
+  <data name="Settings.RunOnStartup.Description" xml:space="preserve">
+    <value>ClientRenderer automatisch starten, wenn du dich bei Windows anmeldest.</value>
+  </data>
+  <data name="Settings.RunOnStartup.Enabled" xml:space="preserve">
+    <value>ClientRenderer wird nach der Windows-Anmeldung automatisch gestartet.</value>
+  </data>
+  <data name="Settings.RunOnStartup.Disabled" xml:space="preserve">
+    <value>ClientRenderer wird nicht automatisch mit Windows gestartet.</value>
+  </data>
+  <data name="Settings.RunOnStartup.Unsupported" xml:space="preserve">
+    <value>Diese Option ist nur unter Windows verfügbar.</value>
+  </data>
+  <data name="Settings.RunOnStartup.Failed" xml:space="preserve">
+    <value>Startoption konnte nicht aktualisiert werden: {0}</value>
+  </data>
+  <data name="Settings.MinimizeInsteadOfClosing.Title" xml:space="preserve">
+    <value>Statt Schließen minimieren</value>
+  </data>
+  <data name="Settings.MinimizeInsteadOfClosing.Description" xml:space="preserve">
+    <value>ClientRenderer in den Infobereich minimieren, statt ihn beim Klick auf Schließen zu beenden.</value>
+  </data>
+  <data name="Nav.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Page.Status.Title" xml:space="preserve">
+    <value>Renderer-Status</value>
+  </data>
+  <data name="Page.Status.ServerStatus" xml:space="preserve">
+    <value>ClientRenderer status</value>
+  </data>
+  <data name="Page.Status.RestartRendererService" xml:space="preserve">
+    <value>Renderer-Dienst neu starten</value>
+  </data>
+  <data name="Page.Status.State.Starting" xml:space="preserve">
+    <value>Wird gestartet...</value>
+  </data>
+  <data name="Page.Status.State.Online" xml:space="preserve">
+    <value>Online</value>
+  </data>
+  <data name="Page.Status.State.Offline" xml:space="preserve">
+    <value>Offline</value>
+  </data>
+  <data name="Page.Status.HeartbeatFailures" xml:space="preserve">
+    <value>Aufeinanderfolgend fehlgeschlagene Heartbeats: {0}</value>
+  </data>
+  <data name="Page.Status.OpenSettingsFolder" xml:space="preserve">
+    <value>settings Ordner öffnen</value>
+  </data>
+  <data name="Page.Status.CheckForUpdates" xml:space="preserve">
+    <value>Nach Updates suchen</value>
+  </data>
+  <data name="Updates.Checking" xml:space="preserve">
+    <value>Suche nach Updates...</value>
+  </data>
+  <data name="Updates.SkipNotInstalled" xml:space="preserve">
+    <value>Updateprüfung wird übersprungen, weil die App nicht über Velopack installiert wurde.</value>
+  </data>
+  <data name="Updates.NoUpdates" xml:space="preserve">
+    <value>Keine Updates gefunden.</value>
+  </data>
+  <data name="Updates.Found" xml:space="preserve">
+    <value>Neues Update gefunden: {0}</value>
+  </data>
+  <data name="Updates.DownloadedRestarting" xml:space="preserve">
+    <value>Update heruntergeladen. Neustart zum Anwenden...</value>
+  </data>
+  <data name="Updates.Failed" xml:space="preserve">
+    <value>Updateprüfung fehlgeschlagen: {0}</value>
+  </data>
+  <data name="Page.Status.State.Failed" xml:space="preserve">
+    <value>Fehlgeschlagen</value>
+  </data>
+  <data name="Page.Status.OpenRendererSettings" xml:space="preserve">
+    <value>ClientRenderer Einstellungen öffnen</value>
+  </data>
 </root>

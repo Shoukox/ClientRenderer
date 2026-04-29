@@ -16,6 +16,7 @@ namespace ClientRenderer.Models
         public string BeatmapsetOszPath { get; set; } = default!;
         public string BeatmapsetDirectoryPath { get; set; } = default!;
         public string SkinOskPath { get; set; } = default!;
+        public string HashedSkinName { get; set; } = default!;
         public long FileTimeNow { get; set; } = DateTime.Now.ToFileTime();
     }
 }

@@ -15,20 +15,15 @@ namespace ClientRenderer.RenderPipeline
         IBeatmapsetsDownloader beatmapsetsDownloader,
         ISkinsDownloader skinsDownloader) : IVideoRenderer
     {
-        private readonly IThumbnailRenderer _thumbnailRenderer = thumbnailRenderer;
-        private readonly IReplaysDownloader _replaysDownloader = replaysDownloader;
-        private readonly IBeatmapsetsDownloader _beatmapsetsDownloader = beatmapsetsDownloader;
-        private readonly ISkinsDownloader _skinsDownloader = skinsDownloader;
-
         public async Task<bool> RenderVideo(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken)
         {
-            if (!await _replaysDownloader.DownloadReplay(info, serverConnection))
+            if (!await replaysDownloader.DownloadReplay(info, serverConnection))
                 return false;
 
-            if (!await _beatmapsetsDownloader.DownloadBeatmapset(info, serverConnection))
+            if (!await beatmapsetsDownloader.DownloadBeatmapset(info, serverConnection))
                 return false;
 
-            if (!await _skinsDownloader.DownloadSkin(info, serverConnection))
+            if (!await skinsDownloader.DownloadSkin(info, serverConnection))
                 return false;
 
             if (info.UseExperimentalRenderer)
@@ -37,7 +32,7 @@ namespace ClientRenderer.RenderPipeline
             }
             else
             {
-                DanserGo.AdjustConfig(ToDanserConfiguration(info.RenderJob.RenderSettings));
+                DanserGo.AdjustConfig(ToDanserConfiguration(info.RenderJob.RenderSettings, info.HashedSkinName));
             }
 
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Start rendering");
@@ -57,7 +52,7 @@ namespace ClientRenderer.RenderPipeline
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully uploaded");
             if (info.DecodedReplay.Ruleset is OsuParsers.Enums.Ruleset.Standard)
             {
-                await _thumbnailRenderer.RenderThumbnail(info, serverConnection);
+                await thumbnailRenderer.RenderThumbnail(info, serverConnection);
             }
             else
             {
@@ -80,14 +75,14 @@ namespace ClientRenderer.RenderPipeline
             return true;
         }
 
-        private static DanserConfiguration ToDanserConfiguration(RenderSettings renderSettings)
+        private static DanserConfiguration ToDanserConfiguration(RenderSettings renderSettings, string hashedSkinName)
         {
             return new DanserConfiguration
             {
                 VideoWidth = renderSettings.VideoWidth,
                 VideoHeight = renderSettings.VideoHeight,
                 Encoder = renderSettings.Encoder,
-                SkinName = renderSettings.SkinName,
+                SkinName = hashedSkinName, // because of the way we are saving our skins in danser
                 GeneralVolume = renderSettings.GeneralVolume,
                 MusicVolume = renderSettings.MusicVolume,
                 SampleVolume = renderSettings.SampleVolume,
@@ -117,16 +112,16 @@ namespace ClientRenderer.RenderPipeline
                 {
                     FrameRate = 60,
                     Resolution = $"{renderSettings.VideoWidth}x{renderSettings.VideoHeight}",
-                    Renderer = "Auto"
+                    Renderer = "Legacy"
                 },
                 FFmpegOptions = new FFmpegOptionsObject
                 {
                     Mode = "Pipe",
-                    LibrariesPath = string.Empty,
+                    LibrariesPath = "ffmpeg",
                     Executable = "ffmpeg",
                     VideoEncoder = renderSettings.Encoder,
                     VideoEncoderPreset = MapExperimentalEncoderPreset(renderSettings.Encoder),
-                    VideoEncoderBitrate = "1M"
+                    VideoEncoderBitrate = "5M"
                 },
                 OutputOptions = new OutputOptionsObject
                 {
@@ -156,7 +151,7 @@ namespace ClientRenderer.RenderPipeline
                 "h264_nvenc" => "p1",
                 "av1_nvenc" => "p1",
                 "libx264" => "veryfast",
-                _ => "ultrafast"
+                _ => "fast"
             };
         }
 
@@ -167,7 +162,14 @@ namespace ClientRenderer.RenderPipeline
 
             try
             {
-                string arguments = $"-r \"{info.ReplayPath}\" -out \"{Path.GetFileNameWithoutExtension(info.VideoPath)}\" -preciseprogress";
+                string[] arguments =
+                [
+                    "-r",
+                    info.ReplayPath,
+                    "-out",
+                    Path.GetFileNameWithoutExtension(info.VideoPath),
+                    "-preciseprogress"
+                ];
                 Task<DanserResult> renderTask = DanserGo.ExecuteAsync(arguments, renderUpdates);
 
                 while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
@@ -217,13 +219,37 @@ namespace ClientRenderer.RenderPipeline
             ConcurrentDictionary<string, string> renderUpdates = new() { ["BeatmapLength"] = $"{info.BeatmapLength}" };
             try
             {
-                string arguments = $"--yes -ex -pr -R --view file \"{info.ReplayPath}\" " +
-                            $"-osz \"{info.BeatmapsetOszPath}\" " +
-                            $"--config orv_config.json " +
-                            $"-O \"{info.VideoPath}\" -exp pp-counter ";
+                var arguments = new List<string>
+                {
+                    "--yes",
+                    "-ex",
+                    "-pr",
+                    "-R",
+                    "--view",
+                    "file",
+                    info.ReplayPath,
+                    "-osz",
+                    info.BeatmapsetOszPath,
+                    "--config",
+                    ExperimentalRenderer.ConfigPath,
+                    "-O",
+                    info.VideoPath
+                };
 
                 if (info.RenderJob.RenderSettings.SkinName != "default")
-                    arguments += $"--skin import \"{info.SkinOskPath}\"";
+                {
+                    arguments.Add("--skin");
+                    arguments.Add("import");
+                    arguments.Add(info.SkinOskPath);
+                }
+
+                if (info.RenderJob.RenderSettings.ShowPP)
+                {
+                    arguments.Add("-exp");
+                    arguments.Add("pp-counter");
+                }
+
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Experimental renderer args: {string.Join(' ', arguments)}");
 
                 var renderTask = ExperimentalRenderer.ExecuteAsync(arguments, renderUpdates);
 

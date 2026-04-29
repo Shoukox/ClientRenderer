@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
-namespace DanserWrapper
+namespace ClientRenderer.Models
 {
-    public record DanserConfiguration
+    public record RenderSettings
     {
         public int VideoWidth { get; set; } = 1280;
         public int VideoHeight { get; set; } = 720;
@@ -28,5 +30,8 @@ namespace DanserWrapper
         public bool Leaderboard { get; set; } = false;
         public bool StrainGraph { get; set; } = true;
         public bool MotionBlur { get; set; } = false;
+        public bool UseExperimentalRenderer { get; set; } = false;
+        public double ManiaScrollSpeed { get; set; } = 25.0;
+        public bool ManiaScrollDirectionUp { get; set; } = false;
     }
 }

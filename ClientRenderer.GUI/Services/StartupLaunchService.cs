@@ -62,7 +62,7 @@ namespace ClientRenderer.GUI.Services
             if (string.IsNullOrWhiteSpace(exePath))
                 throw new InvalidOperationException("Unable to determine the current executable path.");
 
-            return $"\"{exePath}\"";
+            return $"\"{exePath}\" --startup";
         }
     }
 }

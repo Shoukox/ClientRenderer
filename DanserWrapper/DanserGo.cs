@@ -14,7 +14,7 @@ public static class DanserGo
     public readonly static string ScreenshotsPath = Path.Combine(DanserGoDirectoryPath, "screenshots");
     public readonly static string SongsPath = Path.Combine(DanserGoDirectoryPath, "songs");
 
-    public static async Task<DanserResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
+    public static async Task<DanserResult> ExecuteAsync(IEnumerable<string> args, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
     {
         if (!DanserExists())
         {
@@ -25,13 +25,19 @@ public static class DanserGo
         var processStartInfo = new ProcessStartInfo
         {
             FileName = DanserGoPath,
-            Arguments = arguments,
             UseShellExecute = false,
+            CreateNoWindow = true,
+
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            CreateNoWindow = true,
+            RedirectStandardInput = false,
+
             WorkingDirectory = Path.GetDirectoryName(DanserGoPath)
         };
+        foreach (string arg in args)
+        {
+            processStartInfo.ArgumentList.Add(arg);
+        }
 
         using var process = new Process { StartInfo = processStartInfo };
 
@@ -127,7 +133,7 @@ public static class DanserGo
         json["Recording"]["libx264"]["Profile"] = "high";
         json["Recording"]["libx264"]["Preset"] = "veryfast";
         json["Recording"]["h264_nvenc"]["RateControl"] = "cq";
-        json["Recording"]["h264_nvenc"]["Bitrate"] = "4M";
+        json["Recording"]["h264_nvenc"]["Bitrate"] = "5M";
         json["Recording"]["h264_nvenc"]["VBR"] = 30;
         json["Recording"]["h264_nvenc"]["Profile"] = "main";
         json["Recording"]["h264_nvenc"]["Preset"] = "p1";
@@ -175,10 +181,10 @@ public static class DanserGo
 
         if (!File.Exists(configPath))
         {
-            File.WriteAllText(configPath, 
-                JsonConvert.SerializeObject(new DanserCredentials() { ClientId = clientId.ToString(), ClientSecret = clientSecret }, 
-                Formatting.Indented, 
-                new JsonSerializerSettings() {DateFormatString= "yyyy-MM-dd'T'HH:mm:ss'Z'" }));
+            File.WriteAllText(configPath,
+                JsonConvert.SerializeObject(new DanserCredentials() { ClientId = clientId.ToString(), ClientSecret = clientSecret },
+                Formatting.Indented,
+                new JsonSerializerSettings() { DateFormatString = "yyyy-MM-dd'T'HH:mm:ss'Z'" }));
         }
 
         var json = JsonConvert.DeserializeObject<dynamic>(File.ReadAllText(configPath))!;
@@ -194,7 +200,10 @@ public static class DanserGo
     {
         if (operatingSystem.Platform == PlatformID.Win32NT)
         {
-            DanserGoPath += ".exe";
+            if (!DanserGoPath.EndsWith(".exe"))
+            {
+                DanserGoPath += ".exe";
+            }
         }
     }
 

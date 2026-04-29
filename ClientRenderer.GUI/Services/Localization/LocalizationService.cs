@@ -10,7 +10,7 @@ namespace ClientRenderer.GUI.Services.Localization
     public sealed class LocalizationService : ObservableObject
     {
         private static readonly ResourceManager ResourceManager = new(
-            "ClientRenderer.GUI.Localization.Strings",
+            typeof(LocalizationService).Namespace + ".Strings",
             Assembly.GetExecutingAssembly());
 
         private CultureInfo _currentCulture = CultureInfo.GetCultureInfo("en");

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using ClientRenderer.GUI.Configuration;
 using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.Services.Localization;
@@ -19,6 +20,8 @@ namespace ClientRenderer.GUI
         private TrayIcon? _trayIcon;
         private NativeMenuItem? _trayShowMenuItem;
         private NativeMenuItem? _trayExitMenuItem;
+
+        internal static SingleInstanceManager? SingleInstance { get; set; }
 
         public static AppSettingsProvider SettingsProvider { get; } = new(
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClientRenderer"));
@@ -41,7 +44,14 @@ namespace ClientRenderer.GUI
                 {
                     DataContext = new MainWindowViewModel(),
                 };
-                desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+
+                if (desktop.Args?.Contains("--startup") == true)
+                {
+                    desktop.MainWindow.Opened += (_, _) => desktop.MainWindow.Hide();
+                }
+
+                SingleInstance?.RegisterActivationHandler(() => ShowAndActivateMainWindow(desktop));
 
                 CreateTrayIcon();
                 UpdateLocalizedShellText();
@@ -49,9 +59,26 @@ namespace ClientRenderer.GUI
 
                 var settings = SettingsProvider.Current;
                 RendererService.Instance.RunTask(settings.DefaultEncoder, settings.ServerUrl);
+                _ = UpdateService.Instance.CheckForUpdatesAsync(silentIfUpToDate: true, restartArgs: desktop.Args);
             }
 
             base.OnFrameworkInitializationCompleted();
+        }
+
+        private static void ShowAndActivateMainWindow(IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var window = desktop.MainWindow;
+            if (window == null)
+                return;
+
+            if (window.WindowState == WindowState.Minimized)
+                window.WindowState = WindowState.Normal;
+
+            window.Show();
+            window.Activate();
+            window.Topmost = true;
+            window.Topmost = false;
+            window.Focus();
         }
 
         private void CreateTrayIcon()
@@ -67,16 +94,17 @@ namespace ClientRenderer.GUI
             menu.Add(new NativeMenuItemSeparator());
             menu.Add(_trayExitMenuItem);
 
+            Stream iconStream = AssetLoader.Open(new Uri("avares://ClientRenderer.GUI/Assets/icon.ico"));
             _trayIcon = new TrayIcon
             {
-                Icon = new WindowIcon("avares://MyAssembly/Assets/icon.ico"),
+                Icon = new WindowIcon(iconStream),
                 IsVisible = true,
                 Menu = menu,
                 ToolTipText = Localizer["Tray.Tooltip"]
             };
 
             _trayIcon.Clicked += Tray_OnClick;
-            TrayIcon.SetIcons(this, [ _trayIcon ]);
+            TrayIcon.SetIcons(this, [_trayIcon]);
         }
 
         private void UpdateLocalizedShellText()
@@ -115,14 +143,7 @@ namespace ClientRenderer.GUI
         public void Tray_Show_OnClick(object? sender, EventArgs e)
         {
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                if (desktop.MainWindow!.WindowState == WindowState.Minimized)
-                {
-                    desktop.MainWindow.WindowState = WindowState.Normal;
-                }
-                desktop.MainWindow.Show();
-                desktop.MainWindow.Activate();
-            }
+                ShowAndActivateMainWindow(desktop);
         }
 
         public void Tray_Exit_OnClick(object? sender, EventArgs e)

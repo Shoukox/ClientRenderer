@@ -6,32 +6,34 @@ using System.Text.RegularExpressions;
 
 namespace ExperimentalRendererWrapper
 {
-    public class ExperimentalRenderer
+    public static class ExperimentalRenderer
     {
         public static string ExperimentalRendererPath = Path.Combine(AppContext.BaseDirectory, "experimental-renderer", "osu-replay-viewer");
         public readonly static string ExperimentalRendererDirectoryPath = Path.GetDirectoryName(ExperimentalRendererPath)!;
-        public readonly static string ConfigPath = Path.Combine(ExperimentalRendererDirectoryPath, "osu-replay-viewer-config.json");
+        public readonly static string ConfigPath = Path.Combine(ExperimentalRendererDirectoryPath, "orv_config.json");
 
-        public ExperimentalRenderer()
+        public static async Task<ExperimentalRendererResult> ExecuteAsync(IEnumerable<string> args, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
         {
             if (!ExperimentalRendererExists())
             {
                 throw new FileNotFoundException($"Experimental renderer executable was not found at: {ExperimentalRendererPath}");
             }
-        }
-
-        public async Task<ExperimentalRendererResult> ExecuteAsync(string arguments, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
-        {
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = ExperimentalRendererPath,
-                Arguments = arguments,
+                WorkingDirectory = Path.GetDirectoryName(ExperimentalRendererPath),
+
                 UseShellExecute = false,
+                CreateNoWindow = true,
+
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true,
-                WorkingDirectory = Path.GetDirectoryName(ExperimentalRendererPath)
+                RedirectStandardInput = false
             };
+            foreach (string arg in args)
+            {
+                processStartInfo.ArgumentList.Add(arg);
+            }
 
             using var process = new Process { StartInfo = processStartInfo };
 
@@ -74,6 +76,7 @@ namespace ExperimentalRendererWrapper
             };
 
             process.Start();
+            process.PriorityClass = ProcessPriorityClass.High;
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
@@ -116,7 +119,10 @@ namespace ExperimentalRendererWrapper
         {
             if (operatingSystem.Platform == PlatformID.Win32NT)
             {
-                ExperimentalRendererPath += ".exe";
+                if (!ExperimentalRendererPath.EndsWith(".exe"))
+                {
+                    ExperimentalRendererPath += ".exe";
+                }
             }
         }
         public static void AdjustConfig(ExperimentalRendererConfiguration configuration)

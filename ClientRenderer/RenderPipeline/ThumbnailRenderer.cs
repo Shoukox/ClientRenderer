@@ -15,16 +15,12 @@ namespace ClientRenderer.RenderPipeline
             ConcurrentDictionary<string, string> renderUpdates = new();
             try
             {
-                string arguments = $"-r \"{info.ReplayPath}\" " +
-                                   $"-out \"{info.BeatmapHash}\" " +
-                                   $"-ss \"{info.BeatmapLength + 6}\"";
-                result = await new DanserGo().ExecuteAsync(arguments, new());
+                List<string> arguments = ["-r", info.ReplayPath, "-out", info.BeatmapHash, "-ss", $"{info.BeatmapLength + 6}"];
+                result = await DanserGo.ExecuteAsync(arguments, new());
                 if (!result.Success)
                 {
-                    arguments = $"-r \"{info.ReplayPath}\" " +
-                                   $"-out \"{info.BeatmapHash}\" " +
-                                   $"-ss \"{1}\"";
-                    result = await new DanserGo().ExecuteAsync(arguments, new());
+                    arguments = ["-r", info.ReplayPath, "-out", info.BeatmapHash, "-ss", $"{1}"];
+                    result = await DanserGo.ExecuteAsync(arguments, new());
                 }
                 Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully rendered a thumbnail!");
 

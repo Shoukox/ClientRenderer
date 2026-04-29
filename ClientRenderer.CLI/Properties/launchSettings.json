@@ -2,7 +2,7 @@
   "profiles": {
     "ClientRenderer": {
       "commandName": "Project",
-      "commandLineArgs": "-s https://sosubot.shoukko.de"
+      "commandLineArgs": "-s http://127.0.0.1:5000"
     },
     "local": {
       "commandName": "Project",

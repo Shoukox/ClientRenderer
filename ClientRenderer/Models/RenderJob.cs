@@ -21,6 +21,6 @@ namespace ClientRenderer.Models
         public bool IsComplete { get; set; } = false;
         public bool IsSuccess { get; set; } = false;
         public string FailureReason { get; set; } = "";
-        public DanserConfiguration RenderSettings { get; set; } = new();
+        public RenderSettings RenderSettings { get; set; } = new();
     }
 }

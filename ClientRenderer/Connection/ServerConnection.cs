@@ -7,6 +7,8 @@ using System.Net.Http.Json;
 
 namespace ClientRenderer.Connection
 {
+    public readonly record struct HeartbeatStatus(bool IsOnline, int ConsecutiveFailures);
+
     public class ServerConnection : IServerConnection
     {
         private readonly HttpClient _httpClient = new(new HttpRetryHandler(new HttpClientHandler()));
@@ -20,6 +22,10 @@ namespace ClientRenderer.Connection
 
         private readonly CancellationTokenSource _internalCts;
         private readonly CancellationToken _cancellationToken;
+        private readonly object _heartbeatSync = new();
+        private int _consecutiveHeartbeatFailures;
+
+        public event Action<HeartbeatStatus>? HeartbeatStatusChanged;
 
         public ServerConnection(string url, RendererCredentials credentials, CancellationToken cancellationToken)
         {
@@ -50,16 +56,18 @@ namespace ClientRenderer.Connection
                 _lastClientCredentialsGrantResponse = await response.Content.ReadFromJsonAsync<ClientCredentialsGrantResponse>(_cancellationToken);
                 if (string.IsNullOrWhiteSpace(_lastClientCredentialsGrantResponse?.AccessToken) || _lastClientCredentialsGrantResponse.ExpiresIn <= 0)
                 {
+                    notifyHeartbeatFailure();
                     LogError("Token response is invalid.");
                     return false;
                 }
 
-                _nextTokenRefreshTime = DateTime.Now.AddSeconds(_lastClientCredentialsGrantResponse.ExpiresIn * 0.9); // 90% of the token lifetime
+                _nextTokenRefreshTime = DateTime.Now.AddSeconds(_lastClientCredentialsGrantResponse.ExpiresIn * 0.9);
                 await SendHeartbeat();
                 return true;
             }
             catch (Exception ex)
             {
+                notifyHeartbeatFailure();
                 LogError($"InitializeToken failed: {ex.Message}");
                 return false;
             }
@@ -76,27 +84,35 @@ namespace ClientRenderer.Connection
                         await Task.Delay(TokenWaitMs, _cancellationToken);
                         continue;
                     }
+
                     if (_nextTokenRefreshTime - DateTime.Now <= TimeSpan.Zero)
                     {
                         Log("Reinitializing an access token");
                         while (!await InitializeToken())
                         {
+                            notifyHeartbeatFailure();
                             Log("Error while reinitializing an access token. Retrying...");
                             await Task.Delay(5000, _cancellationToken);
                         }
                     }
-                    await SendHeartbeat();
 
+                    await SendHeartbeat();
                     Log("A heartbeat has been sent.");
                     await Task.Delay(heartbeatIntervalMs, _cancellationToken);
                 }
                 catch (HttpRequestException)
                 {
+                    notifyHeartbeatFailure();
                     LogError("Error while doing a request. Retrying in 10 seconds...");
-                    await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken); // wait before retrying on HTTP errors
+                    await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken);
+                }
+                catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
+                    notifyHeartbeatFailure();
                     LogError(ex.ToString());
                 }
             }
@@ -108,8 +124,9 @@ namespace ClientRenderer.Connection
             hrm.Method = HttpMethod.Post;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, "render/heartbeat");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
             response.EnsureSuccessStatusCode();
+            notifyHeartbeatSuccess();
         }
 
         public async Task<RenderJob?> GetNextRenderJob(int intervalMs = 2000)
@@ -134,7 +151,7 @@ namespace ClientRenderer.Connection
                 catch (HttpRequestException)
                 {
                     LogError("Error while doing a request. Retrying in 10 seconds...");
-                    await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken); // wait before retrying on HTTP errors
+                    await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -308,13 +325,34 @@ namespace ClientRenderer.Connection
             }
             catch (OperationCanceledException)
             {
-                // expected during shutdown
             }
             finally
             {
+                notifyHeartbeatFailure();
                 _httpClient.Dispose();
                 _internalCts.Dispose();
             }
+        }
+
+        private void notifyHeartbeatSuccess()
+        {
+            lock (_heartbeatSync)
+            {
+                _consecutiveHeartbeatFailures = 0;
+                HeartbeatStatusChanged?.Invoke(new HeartbeatStatus(true, 0));
+            }
+        }
+
+        private void notifyHeartbeatFailure()
+        {
+            int failures;
+            lock (_heartbeatSync)
+            {
+                _consecutiveHeartbeatFailures++;
+                failures = _consecutiveHeartbeatFailures;
+            }
+
+            HeartbeatStatusChanged?.Invoke(new HeartbeatStatus(false, failures));
         }
 
         private void Log(string message)

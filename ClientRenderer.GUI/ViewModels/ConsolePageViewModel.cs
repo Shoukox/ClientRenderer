@@ -5,6 +5,7 @@ using ClientRenderer.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,8 +16,17 @@ namespace ClientRenderer.GUI.ViewModels
     {
         public static ConsolePageViewModel Instance { get; } = new();
 
+        private const int maxRetainedLines = 2000;
+        private static readonly TimeSpan flushInterval = TimeSpan.FromMilliseconds(150);
+
+        private readonly Queue<string> _lines = new();
+        private readonly Queue<string> _pendingLines = new();
         private readonly StringBuilder _consoleBuffer = new();
+        private readonly object _sync = new();
         private readonly LocalizationService _localizer = App.Localizer;
+
+        private DispatcherTimer? _flushTimer;
+        private CancellationTokenSource? _copyFeedbackCts;
 
         [ObservableProperty]
         private string _title = string.Empty;
@@ -29,7 +39,6 @@ namespace ClientRenderer.GUI.ViewModels
         [NotifyPropertyChangedFor(nameof(CopyIconBrush))]
         private bool _isCopied;
 
-        private CancellationTokenSource? _copyFeedbackCts;
         public string CopyIcon => IsCopied ? "\u2713" : "\u2398";
         public IBrush CopyIconBrush => IsCopied ? Brushes.LimeGreen : Brushes.White;
 
@@ -42,12 +51,19 @@ namespace ClientRenderer.GUI.ViewModels
 
         public void AddLine(string text)
         {
-            AppendRawLine($"[{DateTime.Now:HH:mm:ss}] {text}");
+            enqueueLine($"[{DateTime.Now:HH:mm:ss}] {text}");
         }
 
         public void Clear()
         {
-            _consoleBuffer.Clear();
+            lock (_sync)
+            {
+                _lines.Clear();
+                _pendingLines.Clear();
+                _consoleBuffer.Clear();
+            }
+
+            stopFlushTimer();
             ConsoleText = string.Empty;
         }
 
@@ -67,15 +83,87 @@ namespace ClientRenderer.GUI.ViewModels
             Dispatcher.UIThread.Post(() => AddLine(text));
         }
 
-        private void AppendRawLine(string line)
+        private void enqueueLine(string line)
         {
-            if (_consoleBuffer.Length > 0)
+            lock (_sync)
             {
-                _consoleBuffer.AppendLine();
+                _pendingLines.Enqueue(line);
             }
 
-            _consoleBuffer.Append(line);
+            ensureFlushTimer();
+        }
+
+        private void ensureFlushTimer()
+        {
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                Dispatcher.UIThread.Post(ensureFlushTimer);
+                return;
+            }
+
+            _flushTimer ??= new DispatcherTimer
+            {
+                Interval = flushInterval
+            };
+
+            _flushTimer.Tick -= OnFlushTimerTick;
+            _flushTimer.Tick += OnFlushTimerTick;
+
+            if (!_flushTimer.IsEnabled)
+                _flushTimer.Start();
+        }
+
+        private void stopFlushTimer()
+        {
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                Dispatcher.UIThread.Post(stopFlushTimer);
+                return;
+            }
+
+            _flushTimer?.Stop();
+        }
+
+        private void OnFlushTimerTick(object? sender, EventArgs e)
+        {
+            bool hasChanges = false;
+
+            lock (_sync)
+            {
+                while (_pendingLines.Count > 0)
+                {
+                    _lines.Enqueue(_pendingLines.Dequeue());
+                    hasChanges = true;
+                }
+
+                while (_lines.Count > maxRetainedLines)
+                    _lines.Dequeue();
+
+                if (!hasChanges)
+                {
+                    _flushTimer?.Stop();
+                    return;
+                }
+
+                rebuildBufferUnsafe();
+            }
+
             ConsoleText = _consoleBuffer.ToString();
+        }
+
+        private void rebuildBufferUnsafe()
+        {
+            _consoleBuffer.Clear();
+
+            bool first = true;
+            foreach (var line in _lines)
+            {
+                if (!first)
+                    _consoleBuffer.AppendLine();
+
+                _consoleBuffer.Append(line);
+                first = false;
+            }
         }
 
         [RelayCommand]

@@ -1,5 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.ViewModels;
 
 namespace ClientRenderer.GUI.Views
@@ -12,7 +14,6 @@ namespace ClientRenderer.GUI.Views
         public MainWindow()
         {
             InitializeComponent();
-
             Closing += (s, e) =>
             {
                 if (e.CloseReason is
@@ -31,6 +32,7 @@ namespace ClientRenderer.GUI.Views
                     return;
                 }
 
+                //RendererService.Instance.Dispose();
                 e.Cancel = false;
             };
         }

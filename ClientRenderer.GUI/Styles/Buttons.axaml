@@ -26,6 +26,8 @@
 
 	<Style Selector="Button.icon-button /template/ ContentPresenter">
 		<Setter Property="FontSize" Value="20" />
+		<Setter Property="VerticalAlignment" Value="Center" />
+		<Setter Property="Height" Value="50" />
 	</Style>
 
 	<Style Selector="Button.outline /template/ ContentPresenter">

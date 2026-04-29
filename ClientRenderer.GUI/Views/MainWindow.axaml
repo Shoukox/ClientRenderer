@@ -55,13 +55,18 @@
 								<Label Classes="icon" Content="&#xeb7a;"></Label>
 								<Label Classes="subtitle" Content="{Binding Source={x:Static app:App.Localizer}, Path=[Nav.Console]}" IsVisible="{Binding SideMenuExpanded}"></Label>
 							</StackPanel>
+						</Button>	
+						<Button HorizontalAlignment="Stretch" Command="{Binding GoToStatusCommand}" Classes="icon-button standard" Classes.active="{Binding StatusPageIsActive}">
+							<StackPanel Orientation="Horizontal">
+								<Label Classes="icon" Content="&#2611;"></Label>
+								<Label Classes="subtitle" Content="{Binding Source={x:Static app:App.Localizer}, Path=[Nav.Status]}" IsVisible="{Binding SideMenuExpanded}"></Label>
+							</StackPanel>
 						</Button>
 					</StackPanel>
 
 					<Button Grid.Row="1" HorizontalAlignment="Left" Command="{Binding GoToSettingsCommand}" Classes="icon-button outline settings-icon-only" Classes.active="{Binding SettingsPageIsActive}">
 						<StackPanel Orientation="Horizontal">
 							<Label Classes="icon" Content="&#xe272;"></Label>
-							<Label Classes="subtitle" Content="{Binding Source={x:Static app:App.Localizer}, Path=[Nav.Settings]}" IsVisible="{Binding SideMenuExpanded}"></Label>
 						</StackPanel>
 					</Button>
 				</Grid>

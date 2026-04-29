@@ -43,7 +43,7 @@ namespace ClientRenderer.RenderPipeline
                     }
                     Logger.Log($"[JobId:{info.RenderJob!.JobId}] Skin: {info.RenderJob.RenderSettings.SkinName}. Already exists.");
                 }
-                info.RenderJob.RenderSettings.SkinName = skinNameNoOsk;
+                info.HashedSkinName = skinNameNoOsk;
             }
 
             info.SkinOskPath = oskPath;
