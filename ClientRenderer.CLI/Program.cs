@@ -15,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 using OsuApi.BanchoV2;
 using Velopack;
 
+Logger.Configure("ClientRenderer.CLI");
+
 try
 {
     VelopackApp.Build().Run();
@@ -80,8 +82,12 @@ catch (InvalidOperationException e)
 }
 catch (Exception e)
 {
-    Logger.LogError(e.ToString());
+    Logger.LogError(e, "Unhandled CLI exception");
     File.WriteAllText("error.txt", $"Crash: {e}");
+}
+finally
+{
+    Logger.CloseAndFlush();
 }
 
 static void ValidateRenderingDependencies(int osuClientId, string osuClientSecret)

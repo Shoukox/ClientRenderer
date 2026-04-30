@@ -2,6 +2,7 @@ using System;
 using System.Runtime.Versioning;
 using Avalonia;
 using ClientRenderer.GUI.Services;
+using ClientRenderer.Logging;
 using Velopack;
 
 namespace ClientRenderer.GUI
@@ -14,6 +15,7 @@ namespace ClientRenderer.GUI
         [SupportedOSPlatform("windows")]
         public static void Main(string[] args)
         {
+            Logger.Configure("ClientRenderer.GUI");
             using var singleInstance = new SingleInstanceManager(singleInstanceAppId);
 
             if (!singleInstance.IsPrimaryInstance)
@@ -44,6 +46,7 @@ namespace ClientRenderer.GUI
             finally
             {
                 App.SingleInstance = null;
+                Logger.CloseAndFlush();
             }
         }
 

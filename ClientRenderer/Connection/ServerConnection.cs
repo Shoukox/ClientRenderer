@@ -1,4 +1,5 @@
 ﻿using ClientRenderer.Abstractions;
+using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using ClientRenderer.Utils;
 using System.Globalization;
@@ -355,14 +356,14 @@ namespace ClientRenderer.Connection
             HeartbeatStatusChanged?.Invoke(new HeartbeatStatus(false, failures));
         }
 
-        private void Log(string message)
+        private static void Log(string message)
         {
-            Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\e[38;5;198m[Server] \x1b[36m{message}\x1b[0m");
+            Logger.Log($"[Server] {message}");
         }
 
-        private void LogError(string message)
+        private static void LogError(string message)
         {
-            Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\u001b[38;5;198m[Server] \u001b[31m{message}\x1b[0m");
+            Logger.LogError($"[Server] {message}");
         }
     }
 }

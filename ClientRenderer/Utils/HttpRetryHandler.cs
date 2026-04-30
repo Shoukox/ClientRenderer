@@ -1,4 +1,5 @@
-﻿using Polly;
+﻿using ClientRenderer.Logging;
+using Polly;
 using Polly.Retry;
 
 namespace ClientRenderer.Utils
@@ -27,7 +28,7 @@ namespace ClientRenderer.Utils
         }
         private static void LogError(string message)
         {
-            Console.WriteLine($"\x1b[32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss.ffff}]\u001b[38;5;198m[HttpRetryHandler] \u001b[31m{message}\x1b[0m");
+            Logger.LogError($"[HttpRetryHandler] {message}");
         }
     }
 }
