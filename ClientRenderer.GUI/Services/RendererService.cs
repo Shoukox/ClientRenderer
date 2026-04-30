@@ -4,6 +4,7 @@ using ClientRenderer.Logging;
 using ClientRenderer.Render;
 using ClientRenderer.RenderPipeline;
 using ClientRenderer.Startup;
+using ClientRenderer.Helpers;
 using DanserWrapper;
 using ExperimentalRendererWrapper;
 using Microsoft.Extensions.DependencyInjection;
@@ -251,6 +252,14 @@ namespace ClientRenderer.GUI.Services
             ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
             if (!ExperimentalRenderer.ExperimentalRendererExists())
                 throw new InvalidOperationException("Experimental renderer does not exist!");
+
+            WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
+                Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffmpeg.exe"),
+                Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffprobe.exe"),
+                Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe"),
+                Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffprobe.exe"),
+                Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffplay.exe")
+            ]);
 
             DanserGo.CreateDirectoriesIfNeeded();
         }

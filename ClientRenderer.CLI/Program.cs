@@ -3,6 +3,7 @@ using ClientRenderer.CLI.Abstractions;
 using ClientRenderer.CLI.Configuration;
 using ClientRenderer.CLI.Startup;
 using ClientRenderer.Connection;
+using ClientRenderer.Helpers;
 using ClientRenderer.Logging;
 using ClientRenderer.Render;
 using ClientRenderer.RenderPipeline;
@@ -93,6 +94,14 @@ static void ValidateRenderingDependencies(int osuClientId, string osuClientSecre
     ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
     if (!ExperimentalRenderer.ExperimentalRendererExists())
         throw new InvalidOperationException("Experimental renderer does not exist!");
+
+    WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
+        Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffmpeg.exe"),
+        Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffprobe.exe"),
+        Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe"),
+        Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffprobe.exe"),
+        Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffplay.exe")
+    ]);
 
     DanserGo.CreateDirectoriesIfNeeded();
 }
