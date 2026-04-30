@@ -16,4 +16,9 @@
 	<Style Selector="Label.subtitle">
 		<Setter Property="FontFamily" Value="{DynamicResource NotoSansJP-Regular}" />
 	</Style>
+
+	<Style Selector="TextBlock.version-text">
+		<Setter Property="FontSize" Value="10" />
+	</Style>
+
 </Styles>

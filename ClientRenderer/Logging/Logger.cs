@@ -11,6 +11,8 @@ public static class Logger
     private static readonly object Sync = new();
     private static bool _configured;
 
+    public static readonly string LogsDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+
     public static void Configure(string applicationName)
     {
         lock (Sync)
@@ -18,8 +20,7 @@ public static class Logger
             if (_configured)
                 return;
 
-            var logsDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
-            Directory.CreateDirectory(logsDirectory);
+            Directory.CreateDirectory(LogsDirectory);
 
             var outputTemplate = "[{Timestamp:yyyy-MM-dd HH:mm:ss.ffff} {Level:u3}] {Message:lj}{NewLine}{Exception}";
             var errorOutputTemplate = "[{Timestamp:yyyy-MM-dd HH:mm:ss.ffff} {Level:u3}] {Message:lj}{NewLine}{Exception}";
@@ -29,14 +30,14 @@ public static class Logger
                 .Enrich.WithProperty("Application", applicationName)
                 .WriteTo.Console(outputTemplate: outputTemplate)
                 .WriteTo.File(
-                    path: Path.Combine(logsDirectory, $"{applicationName}-.log"),
+                    path: Path.Combine(LogsDirectory, $"{applicationName}-.log"),
                     outputTemplate: outputTemplate,
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 14,
                     shared: true,
                     flushToDiskInterval: TimeSpan.FromSeconds(1))
                 .WriteTo.File(
-                    path: Path.Combine(logsDirectory, $"{applicationName}-errors-.log"),
+                    path: Path.Combine(LogsDirectory, $"{applicationName}-errors-.log"),
                     restrictedToMinimumLevel: LogEventLevel.Error,
                     outputTemplate: errorOutputTemplate,
                     rollingInterval: RollingInterval.Day,
@@ -46,7 +47,7 @@ public static class Logger
                 .CreateLogger();
 
             _configured = true;
-            Serilog.Log.Information("Logger initialized. Writing logs to {LogsDirectory}", logsDirectory);
+            Serilog.Log.Information("Logger initialized. Writing logs to {LogsDirectory}", LogsDirectory);
         }
     }
 

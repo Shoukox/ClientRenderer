@@ -231,4 +231,7 @@
   <data name="Page.Status.OpenRendererSettings" xml:space="preserve">
     <value>Open ClientRenderer settings</value>
   </data>
+  <data name="Page.Status.OpenLogsFolder" xml:space="preserve">
+    <value>Open logs folder</value>
+  </data>
 </root>

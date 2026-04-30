@@ -25,7 +25,7 @@ public class ReplaysDownloader : IReplaysDownloader
             info.UseExperimentalRenderer = true;
         }
         info.BeatmapHash = info.DecodedReplay.BeatmapMD5Hash;
-        info.ReplayPath = Path.GetFullPath($"{info.BeatmapHash}{info.FileTimeNow}.osr");
+        info.ReplayPath = Path.Combine(AppContext.BaseDirectory, $"{info.BeatmapHash}{info.FileTimeNow}.osr");
         await File.WriteAllBytesAsync(info.ReplayPath, info.ReplayAsBytes);
 
         return true;

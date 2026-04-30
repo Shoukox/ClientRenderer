@@ -254,8 +254,11 @@ namespace ClientRenderer.GUI.Services
                 throw new InvalidOperationException("Experimental renderer does not exist!");
 
             WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
+                DanserGo.DanserGoPath,
+                ExperimentalRenderer.ExperimentalRendererPath,
                 Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffmpeg.exe"),
                 Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffprobe.exe"),
+                Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffplay.exe"),
                 Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe"),
                 Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffprobe.exe"),
                 Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffplay.exe")

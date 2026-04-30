@@ -8,11 +8,10 @@
 			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
 			 x:Class="ClientRenderer.GUI.Views.StatusPageView">
 	<Border Classes="console-root" Padding="20">
-		<StackPanel Spacing="20">
-			<TextBlock Classes="console-title" Text="{Binding Title}" FontSize="22" />
-
-			<Border Classes="console-toolbar" Padding="16">
-				<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+		<Grid RowDefinitions="Auto,Auto,*" RowSpacing="20">
+			<TextBlock Grid.Row="0" Classes="console-title" Text="{Binding Title}" FontSize="22" />
+			<Border Grid.Row="1" Classes="console-toolbar" Padding="16">
+				<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
 					<TextBlock Grid.Row="0" Grid.Column="0"
 							   Text="{Binding Source={x:Static app:App.Localizer}, Path=[Page.Status.ServerStatus]}"
 							   FontSize="16"
@@ -24,8 +23,8 @@
 
 					<TextBlock Grid.Row="1" Grid.ColumnSpan="2"
 							   Text="{Binding HeartbeatFailuresLabel}"
-							   TextWrapping="Wrap" />
-					<StackPanel Orientation="Vertical" Spacing="7" Grid.Row="2">
+							   TextWrapping="Wrap"/>
+					<StackPanel Grid.Row="2" Orientation="Vertical" Spacing="7">
 						<StackPanel Orientation="Horizontal">
 							<StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
 								<Button Command="{Binding RestartRendererServiceCommand}"
@@ -49,20 +48,24 @@
 										   VerticalAlignment="Center" />
 							</StackPanel>
 						</StackPanel>
-						<StackPanel Orientation="Horizontal" Spacing="7"> 
+						<StackPanel Orientation="Horizontal" Spacing="7">
 							<Button Command="{Binding OpenSettingsFolderCommand}"
 									HorizontalAlignment="Left"
-									IsEnabled="{Binding CanRunStatusActions}"
 									Content="{Binding Source={x:Static app:App.Localizer}, Path=[Page.Status.OpenSettingsFolder]}" />
 							<Button Command="{Binding OpenClientRendererSettingsCommand}"
 									HorizontalAlignment="Left"
-									IsEnabled="{Binding CanRunStatusActions}"
 									Content="{Binding Source={x:Static app:App.Localizer}, Path=[Page.Status.OpenRendererSettings]}" />
+							<Button Command="{Binding OpenLogsFolderCommand}"
+									HorizontalAlignment="Left"
+									Content="{Binding Source={x:Static app:App.Localizer}, Path=[Page.Status.OpenLogsFolder]}" />
 						</StackPanel>
 					</StackPanel>
 				</Grid>
-
 			</Border>
-		</StackPanel>
+			<StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center"
+						Grid.Row="2">
+				<TextBlock Text="{Binding AppVersion}" Classes="version-text" />
+			</StackPanel>
+		</Grid>
 	</Border>
 </UserControl>

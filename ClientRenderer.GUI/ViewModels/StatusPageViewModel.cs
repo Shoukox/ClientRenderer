@@ -1,5 +1,6 @@
 using Avalonia.Media;
 using Avalonia.Threading;
+using ClientRenderer.GUI.Helpers;
 using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.Services.Localization;
 using ClientRenderer.Logging;
@@ -9,6 +10,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -54,6 +56,9 @@ namespace ClientRenderer.GUI.ViewModels
 
         [ObservableProperty]
         private IBrush _updateFeedbackBrush = Brushes.Transparent;
+
+        [ObservableProperty]
+        private string _appVersion = AppBuildInfo.DisplayText;
 
         public IBrush ServerStatusBrush => IsStarting
             ? Brushes.Goldenrod
@@ -183,7 +188,7 @@ namespace ClientRenderer.GUI.ViewModels
         }
 
         [RelayCommand]
-        private Task OpenSettingsFolder()
+        private void OpenSettingsFolder()
         {
             Directory.CreateDirectory(App.SettingsProvider.RendererSettingsDirectory);
             Process.Start(new ProcessStartInfo
@@ -191,12 +196,10 @@ namespace ClientRenderer.GUI.ViewModels
                 FileName = App.SettingsProvider.RendererSettingsDirectory,
                 UseShellExecute = true
             });
-
-            return Task.CompletedTask;
         }
 
         [RelayCommand]
-        private Task OpenClientRendererSettings()
+        private void OpenClientRendererSettings()
         {
             try
             {
@@ -211,8 +214,17 @@ namespace ClientRenderer.GUI.ViewModels
                 FileName = App.SettingsProvider.FilePath,
                 UseShellExecute = true
             });
+        }
 
-            return Task.CompletedTask;
+        [RelayCommand]
+        private void OpenLogsFolder()
+        {
+            Directory.CreateDirectory(Logger.LogsDirectory);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = Logger.LogsDirectory,
+                UseShellExecute = true
+            });
         }
 
         private void clearRestartFeedback()

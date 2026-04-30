@@ -5,6 +5,7 @@ using ClientRenderer.Utils;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Reflection;
 
 namespace ClientRenderer.Connection
 {
@@ -96,9 +97,7 @@ namespace ClientRenderer.Connection
                             await Task.Delay(5000, _cancellationToken);
                         }
                     }
-
                     await SendHeartbeat();
-                    Log("A heartbeat has been sent.");
                     await Task.Delay(heartbeatIntervalMs, _cancellationToken);
                 }
                 catch (HttpRequestException)

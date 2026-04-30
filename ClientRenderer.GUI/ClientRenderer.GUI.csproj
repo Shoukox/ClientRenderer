@@ -6,9 +6,18 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-		<Version>2.0.1</Version>
+		<Version>2.0.2</Version>
+		<InformationalVersion>2.0.2</InformationalVersion>
+		<ReleaseDate>30.04.2026 CET</ReleaseDate>
 	</PropertyGroup>
-
+	
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+			<_Parameter1>ReleaseDate</_Parameter1>
+			<_Parameter2>$(ReleaseDate)</_Parameter2>
+		</AssemblyAttribute>
+	</ItemGroup>
+	
 	<ItemGroup>
 		<AvaloniaResource Include="Assets\**" />
 	</ItemGroup>
