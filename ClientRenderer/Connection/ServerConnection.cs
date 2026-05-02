@@ -3,6 +3,7 @@ using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using ClientRenderer.Utils;
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Reflection;
@@ -140,12 +141,19 @@ namespace ClientRenderer.Connection
                     hrm.Method = HttpMethod.Post;
                     hrm.RequestUri = new Uri(_httpClient.BaseAddress!, "render/get-next-render-job");
                     hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-                    using var response = await _httpClient.SendAsync(hrm);
+                    using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
                     if (response.IsSuccessStatusCode)
                     {
-                        renderJob = (await response.Content.ReadFromJsonAsync<RenderJob>())!;
+                        renderJob = (await response.Content.ReadFromJsonAsync<RenderJob>(_cancellationToken))!;
                         break;
                     }
+
+                    if (response.StatusCode != HttpStatusCode.NotFound && response.StatusCode != HttpStatusCode.Conflict && response.StatusCode != HttpStatusCode.BadRequest)
+                    {
+                        var responseBody = await TryReadBodyAsync(response);
+                        LogError($"GetNextRenderJob returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
+                    }
+
                     await Task.Delay(intervalMs, _cancellationToken);
                 }
                 catch (HttpRequestException)
@@ -181,9 +189,9 @@ namespace ClientRenderer.Connection
             hrm.Method = HttpMethod.Post;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/download-replay?job-id={jobId}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsByteArrayAsync();
+            return await response.Content.ReadAsByteArrayAsync(_cancellationToken);
         }
 
         public async Task<byte[]> DownloadSkin(string skinFileNameHex)
@@ -191,9 +199,9 @@ namespace ClientRenderer.Connection
             using HttpRequestMessage hrm = new HttpRequestMessage();
             hrm.Method = HttpMethod.Get;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"skins/{skinFileNameHex}");
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsByteArrayAsync();
+            return await response.Content.ReadAsByteArrayAsync(_cancellationToken);
         }
 
         public async Task ReportRenderingProgress(int jobId, double progress)
@@ -202,7 +210,12 @@ namespace ClientRenderer.Connection
             hrm.Method = HttpMethod.Post;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/report-rendering-progress?job-id={jobId}&progress={progress.ToString(CultureInfo.InvariantCulture)}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+            if (await HandleExpectedRendererStateResponseAsync(response, "ReportRenderingProgress", jobId))
+            {
+                return;
+            }
+
             response.EnsureSuccessStatusCode();
         }
 
@@ -212,7 +225,12 @@ namespace ClientRenderer.Connection
             hrm.Method = HttpMethod.Post;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/finish-rendering?job-id={jobId}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+            if (await HandleExpectedRendererStateResponseAsync(response, "FinishRendering", jobId))
+            {
+                return;
+            }
+
             response.EnsureSuccessStatusCode();
         }
 
@@ -224,7 +242,12 @@ namespace ClientRenderer.Connection
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
             hrm.Headers.TryAddWithoutValidation("PlayerName", renderJob.PlayerName);
             hrm.Headers.TryAddWithoutValidation("MapName", renderJob.MapName);
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+            if (await HandleExpectedRendererStateResponseAsync(response, "SetRenderJobMetadata", renderJob.JobId))
+            {
+                return;
+            }
+
             response.EnsureSuccessStatusCode();
         }
 
@@ -235,7 +258,12 @@ namespace ClientRenderer.Connection
             var encodedReason = Uri.EscapeDataString(reason ?? string.Empty);
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/failure?job-id={jobId}&reason={encodedReason}&rerender={rerender}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+            if (await HandleExpectedRendererStateResponseAsync(response, "Failure", jobId))
+            {
+                return;
+            }
+
             response.EnsureSuccessStatusCode();
         }
 
@@ -312,7 +340,7 @@ namespace ClientRenderer.Connection
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"thumbnails/upload?job-id={jobId}");
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
 
-            using var response = await _httpClient.SendAsync(hrm);
+            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
             response.EnsureSuccessStatusCode();
         }
 
@@ -332,6 +360,33 @@ namespace ClientRenderer.Connection
                 _httpClient.Dispose();
                 _internalCts.Dispose();
             }
+        }
+
+        private static bool IsExpectedRendererStateStatus(HttpStatusCode statusCode)
+            => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Conflict;
+
+        private static async Task<string> TryReadBodyAsync(HttpResponseMessage response)
+        {
+            try
+            {
+                return (await response.Content.ReadAsStringAsync()).Trim();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static async Task<bool> HandleExpectedRendererStateResponseAsync(HttpResponseMessage response, string operationName, int jobId)
+        {
+            if (response.IsSuccessStatusCode || !IsExpectedRendererStateStatus(response.StatusCode))
+            {
+                return false;
+            }
+
+            var responseBody = await TryReadBodyAsync(response);
+            Log($"[JobId:{jobId}] {operationName} skipped because server returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
+            return true;
         }
 
         private void notifyHeartbeatSuccess()
