@@ -220,5 +220,10 @@ public static class DanserGo
         {
             Directory.CreateDirectory(SongsPath);
         }
+
+        if (!Directory.Exists(ScreenshotsPath))
+        {
+            Directory.CreateDirectory(ScreenshotsPath);
+        }
     }
 }
