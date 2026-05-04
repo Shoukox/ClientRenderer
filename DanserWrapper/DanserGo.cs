@@ -128,7 +128,7 @@ public static class DanserGo
         json["Recording"]["FPS"] = 60;
         json["Recording"]["OutputDir"] = "videos";
         json["Recording"]["libx264"]["RateControl"] = "crf";
-        json["Recording"]["libx264"]["Bitrate"] = "4M";
+        json["Recording"]["libx264"]["Bitrate"] = "5M";
         json["Recording"]["libx264"]["CRF"] = 30;
         json["Recording"]["libx264"]["Profile"] = "high";
         json["Recording"]["libx264"]["Preset"] = "veryfast";
@@ -138,7 +138,7 @@ public static class DanserGo
         json["Recording"]["h264_nvenc"]["Profile"] = "main";
         json["Recording"]["h264_nvenc"]["Preset"] = "p1";
         json["Recording"]["av1_nvenc"]["RateControl"] = "cbr";
-        json["Recording"]["av1_nvenc"]["Bitrate"] = "4M";
+        json["Recording"]["av1_nvenc"]["Bitrate"] = "5M";
         json["Recording"]["av1_nvenc"]["VBR"] = 30;
         json["Recording"]["av1_nvenc"]["Preset"] = "p1";
 
@@ -146,6 +146,7 @@ public static class DanserGo
 
         json["Skin"]["CurrentSkin"] = configuration.SkinName;
         json["Skin"]["FallbackSkin"] = "default";
+        json["Skin"]["Cursor"]["Scale"] = configuration.CursorSize;
 
         json["Objects"]["Sliders"]["Snaking"]["In"] = false;
         json["Objects"]["Sliders"]["Snaking"]["Out"] = false;

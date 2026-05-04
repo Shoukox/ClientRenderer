@@ -60,7 +60,7 @@ namespace ClientRenderer.Connection
                 if (string.IsNullOrWhiteSpace(_lastClientCredentialsGrantResponse?.AccessToken) || _lastClientCredentialsGrantResponse.ExpiresIn <= 0)
                 {
                     notifyHeartbeatFailure();
-                    LogError("Token response is invalid.");
+                    Logger.LogError("Token response is invalid.");
                     return false;
                 }
 
@@ -71,7 +71,7 @@ namespace ClientRenderer.Connection
             catch (Exception ex)
             {
                 notifyHeartbeatFailure();
-                LogError($"InitializeToken failed: {ex.Message}");
+                Logger.LogError($"InitializeToken failed: {ex.Message}");
                 return false;
             }
         }
@@ -90,11 +90,11 @@ namespace ClientRenderer.Connection
 
                     if (_nextTokenRefreshTime - DateTime.Now <= TimeSpan.Zero)
                     {
-                        Log("Reinitializing an access token");
+                        Logger.Log("Reinitializing an access token");
                         while (!await InitializeToken())
                         {
                             notifyHeartbeatFailure();
-                            Log("Error while reinitializing an access token. Retrying...");
+                            Logger.Log("Error while reinitializing an access token. Retrying...");
                             await Task.Delay(5000, _cancellationToken);
                         }
                     }
@@ -104,7 +104,7 @@ namespace ClientRenderer.Connection
                 catch (HttpRequestException)
                 {
                     notifyHeartbeatFailure();
-                    LogError("Error while doing a request. Retrying in 10 seconds...");
+                    Logger.LogError("Error while doing a request. Retrying in 10 seconds...");
                     await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken);
                 }
                 catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
@@ -114,7 +114,7 @@ namespace ClientRenderer.Connection
                 catch (Exception ex)
                 {
                     notifyHeartbeatFailure();
-                    LogError(ex.ToString());
+                    Logger.LogError(ex.ToString());
                 }
             }
         }
@@ -151,19 +151,19 @@ namespace ClientRenderer.Connection
                     if (response.StatusCode != HttpStatusCode.NotFound && response.StatusCode != HttpStatusCode.Conflict && response.StatusCode != HttpStatusCode.BadRequest)
                     {
                         var responseBody = await TryReadBodyAsync(response);
-                        LogError($"GetNextRenderJob returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
+                        Logger.LogError($"GetNextRenderJob returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
                     }
 
                     await Task.Delay(intervalMs, _cancellationToken);
                 }
                 catch (HttpRequestException)
                 {
-                    LogError("Error while doing a request. Retrying in 10 seconds...");
+                    Logger.LogError("Error while doing a request. Retrying in 10 seconds...");
                     await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    LogError(ex.ToString());
+                    Logger.LogError(ex.ToString());
                 }
             }
 
@@ -307,13 +307,13 @@ namespace ClientRenderer.Connection
                         using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
                         response.EnsureSuccessStatusCode();
 
-                        Log($"Uploaded chunk {chunkIndex + 1}/{totalChunks}");
+                        Logger.Log($"Uploaded chunk {chunkIndex + 1}/{totalChunks}");
                         uploaded = true;
                         break;
                     }
                     catch (Exception ex) when (attempts < maxRetriesPerChunk)
                     {
-                        LogError($"Error while uploading chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retry {attempts}/{maxRetriesPerChunk}...");
+                        Logger.LogError($"Error while uploading chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retry {attempts}/{maxRetriesPerChunk}...");
                         await Task.Delay(1000, _cancellationToken);
                     }
                 }
@@ -332,7 +332,7 @@ namespace ClientRenderer.Connection
             await using var fileStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read);
             using var multipart = new MultipartFormDataContent
             {
-                { new StreamContent(fileStream), "file", $"thumbnail.png" }
+                { new StreamContent(fileStream), "file", $"thumbnail.jpg" }
             };
 
             hrm.Content = multipart;
@@ -362,8 +362,7 @@ namespace ClientRenderer.Connection
             }
         }
 
-        private static bool IsExpectedRendererStateStatus(HttpStatusCode statusCode)
-            => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Conflict;
+        private static bool IsExpectedRendererStateStatus(HttpStatusCode statusCode) => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Conflict;
 
         private static async Task<string> TryReadBodyAsync(HttpResponseMessage response)
         {
@@ -385,7 +384,7 @@ namespace ClientRenderer.Connection
             }
 
             var responseBody = await TryReadBodyAsync(response);
-            Log($"[JobId:{jobId}] {operationName} skipped because server returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
+            Logger.Log($"[JobId:{jobId}] {operationName} skipped because server returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
             return true;
         }
 
@@ -408,16 +407,6 @@ namespace ClientRenderer.Connection
             }
 
             HeartbeatStatusChanged?.Invoke(new HeartbeatStatus(false, failures));
-        }
-
-        private static void Log(string message)
-        {
-            Logger.Log($"[Server] {message}");
-        }
-
-        private static void LogError(string message)
-        {
-            Logger.LogError($"[Server] {message}");
         }
     }
 }

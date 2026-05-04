@@ -16,10 +16,12 @@ public partial class ConsolePageView : UserControl
         if (scrollViewer == null) return;
 
         bool isAtBottom = scrollViewer.Offset.Y >= scrollViewer.Extent.Height - scrollViewer.Viewport.Height - 1;
-        if(!isAtBottom) {
+        if (!isAtBottom)
+        {
             _autoScroll = false;
         }
-        else {
+        else
+        {
             _autoScroll = true;
         }
 
@@ -27,5 +29,12 @@ public partial class ConsolePageView : UserControl
         {
             scrollViewer.ScrollToEnd();
         }
+    }
+
+    private void ScrollViewer_Initialized(object? sender, System.EventArgs e)
+    {
+        ScrollViewer? scrollViewer = sender as ScrollViewer;
+        if (scrollViewer == null) return;
+        scrollViewer.ScrollToEnd();
     }
 }

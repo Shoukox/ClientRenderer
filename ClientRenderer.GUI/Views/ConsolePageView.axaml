@@ -20,6 +20,7 @@
 			<ScrollViewer VerticalScrollBarVisibility="Visible"
 						  HorizontalScrollBarVisibility="Disabled"
 						  ScrollChanged="ScrollViewer_ScrollChanged"
+						  Initialized="ScrollViewer_Initialized"
 						  Grid.Row="1">
 				<SelectableTextBlock 
 									 Classes="console-output"

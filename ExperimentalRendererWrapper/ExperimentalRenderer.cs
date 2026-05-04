@@ -10,6 +10,7 @@ namespace ExperimentalRendererWrapper
     {
         public static string ExperimentalRendererPath = Path.Combine(AppContext.BaseDirectory, "experimental-renderer", "osu-replay-viewer");
         public readonly static string ExperimentalRendererDirectoryPath = Path.GetDirectoryName(ExperimentalRendererPath)!;
+        public readonly static string FfmpegPath = Path.Combine(ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe");
         public readonly static string ConfigPath = Path.Combine(ExperimentalRendererDirectoryPath, "orv_config.json");
 
         public static async Task<ExperimentalRendererResult> ExecuteAsync(IEnumerable<string> args, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)

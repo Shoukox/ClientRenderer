@@ -1,9 +1,9 @@
 using ClientRenderer.Abstractions;
+using ClientRenderer.Helpers;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using DanserWrapper;
 using ExperimentalRendererWrapper;
-using ExperimentalRendererWrapper.Configuration;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
@@ -28,11 +28,11 @@ namespace ClientRenderer.RenderPipeline
 
             if (info.UseExperimentalRenderer)
             {
-                ExperimentalRenderer.AdjustConfig(ToExperimentalRendererConfiguration(info.RenderJob.RenderSettings));
+                ExperimentalRenderer.AdjustConfig(info.RenderJob.RenderSettings.ToExperimentalRendererConfiguration());
             }
             else
             {
-                DanserGo.AdjustConfig(ToDanserConfiguration(info.RenderJob.RenderSettings, info.HashedSkinName));
+                DanserGo.AdjustConfig(info.RenderJob.RenderSettings.ToDanserConfiguration(info.HashedSkinName));
             }
 
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Start rendering");
@@ -50,14 +50,7 @@ namespace ClientRenderer.RenderPipeline
             await serverConnection.PostVideo(info.VideoPath, info.RenderJob.JobId);
 
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully uploaded");
-            if (info.DecodedReplay.Ruleset is OsuParsers.Enums.Ruleset.Standard)
-            {
-                await thumbnailRenderer.RenderThumbnail(info, serverConnection);
-            }
-            else
-            {
-                Logger.Log("A thumbnail will not be rendered - the replay is not from osu!std");
-            }
+            await thumbnailRenderer.RenderThumbnail(info, serverConnection, cancellationToken);
 
             try
             {
@@ -75,86 +68,6 @@ namespace ClientRenderer.RenderPipeline
             return true;
         }
 
-        private static DanserConfiguration ToDanserConfiguration(RenderSettings renderSettings, string hashedSkinName)
-        {
-            return new DanserConfiguration
-            {
-                VideoWidth = renderSettings.VideoWidth,
-                VideoHeight = renderSettings.VideoHeight,
-                Encoder = renderSettings.Encoder,
-                SkinName = hashedSkinName, // because of the way we are saving our skins in danser
-                GeneralVolume = renderSettings.GeneralVolume,
-                MusicVolume = renderSettings.MusicVolume,
-                SampleVolume = renderSettings.SampleVolume,
-                BackgroundDim = renderSettings.BackgroundDim,
-                HitErrorMeter = renderSettings.HitErrorMeter,
-                AimErrorMeter = renderSettings.AimErrorMeter,
-                HPBar = renderSettings.HPBar,
-                ShowPP = renderSettings.ShowPP,
-                HitCounter = renderSettings.HitCounter,
-                IgnoreFailsInReplays = renderSettings.IgnoreFailsInReplays,
-                Video = renderSettings.Video,
-                Storyboard = renderSettings.Storyboard,
-                Mods = renderSettings.Mods,
-                KeyOverlay = renderSettings.KeyOverlay,
-                Combo = renderSettings.Combo,
-                Leaderboard = renderSettings.Leaderboard,
-                StrainGraph = renderSettings.StrainGraph,
-                MotionBlur = renderSettings.MotionBlur,
-            };
-        }
-
-        private static ExperimentalRendererConfiguration ToExperimentalRendererConfiguration(RenderSettings renderSettings)
-        {
-            return new ExperimentalRendererConfiguration
-            {
-                RecordOptions = new RecordOptionsObject
-                {
-                    FrameRate = 60,
-                    Resolution = $"{renderSettings.VideoWidth}x{renderSettings.VideoHeight}",
-                    Renderer = "Legacy"
-                },
-                FFmpegOptions = new FFmpegOptionsObject
-                {
-                    Mode = "Pipe",
-                    LibrariesPath = Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg"),
-                    Executable = Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe"),
-                    VideoEncoder = renderSettings.Encoder,
-                    VideoEncoderPreset = MapExperimentalEncoderPreset(renderSettings.Encoder),
-                    VideoEncoderBitrate = "5M"
-                },
-                OutputOptions = new OutputOptionsObject
-                {
-                    PixelFormat = "RGB"
-                },
-                GameSettings = new GameSettings
-                {
-                    SkipIntro = false,
-                    BackgroundDim = renderSettings.BackgroundDim,
-                    ShowStoryboard = renderSettings.Storyboard || renderSettings.Video,
-                    BeatmapHitsounds = false,
-                    BeatmapSkin = false,
-                    BeatmapColors = false,
-                    VolumeMusic = renderSettings.MusicVolume,
-                    VolumeEffects = renderSettings.SampleVolume,
-                    VolumeMaster = renderSettings.GeneralVolume,
-                    ManiaScrollSpeed = renderSettings.ManiaScrollSpeed,
-                    ManiaScrollDirectionUp = renderSettings.ManiaScrollDirectionUp ? "up" : "down"
-                }
-            };
-        }
-
-        private static string MapExperimentalEncoderPreset(string encoder)
-        {
-            return encoder switch
-            {
-                "h264_nvenc" => "p1",
-                "av1_nvenc" => "p1",
-                "libx264" => "veryfast",
-                _ => "fast"
-            };
-        }
-
         public async Task<bool> RenderWithDanser(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken)
         {
             DanserResult result;
@@ -170,7 +83,7 @@ namespace ClientRenderer.RenderPipeline
                     Path.GetFileNameWithoutExtension(info.VideoPath),
                     "-preciseprogress"
                 ];
-                Task<DanserResult> renderTask = DanserGo.ExecuteAsync(arguments, renderUpdates);
+                Task<DanserResult> renderTask = DanserGo.ExecuteAsync(arguments, renderUpdates, cancellationToken: cancellationToken);
 
                 while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {
@@ -251,7 +164,7 @@ namespace ClientRenderer.RenderPipeline
 
                 Logger.Log($"[JobId:{info.RenderJob!.JobId}] Experimental renderer args: {string.Join(' ', arguments)}");
 
-                var renderTask = ExperimentalRenderer.ExecuteAsync(arguments, renderUpdates);
+                var renderTask = ExperimentalRenderer.ExecuteAsync(arguments, renderUpdates, cancellationToken: cancellationToken);
 
                 while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {

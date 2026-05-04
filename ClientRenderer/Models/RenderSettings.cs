@@ -16,6 +16,7 @@ namespace ClientRenderer.Models
         public double MusicVolume { get; set; } = 0.5;
         public double SampleVolume { get; set; } = 0.5;
         public double BackgroundDim { get; set; } = 0.95;
+        public double CursorSize { get; set; } = 1.0;
         public bool HitErrorMeter { get; set; } = true;
         public bool AimErrorMeter { get; set; } = false;
         public bool HPBar { get; set; } = true;

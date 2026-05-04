@@ -6,9 +6,9 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-		<Version>2.0.2</Version>
-		<InformationalVersion>2.0.2</InformationalVersion>
-		<ReleaseDate>30.04.2026 CET</ReleaseDate>
+		<Version>2.0.3</Version>
+		<InformationalVersion>2.0.3</InformationalVersion>
+		<ReleaseDate>04.05.2026 02:27 CET</ReleaseDate>
 	</PropertyGroup>
 	
 	<ItemGroup>

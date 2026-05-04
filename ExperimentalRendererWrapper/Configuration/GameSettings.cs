@@ -16,6 +16,7 @@ namespace ExperimentalRendererWrapper.Configuration
         [JsonProperty("music_volume")] public double VolumeMusic = 0.6;
         [JsonProperty("effects_volume")] public double VolumeEffects = 0.3;
         [JsonProperty("master_volume")] public double VolumeMaster = 0.6;
+        [JsonProperty("cursor_size")] public double CursorSize = 1.0;
         [JsonProperty("scroll_speed")] public double ManiaScrollSpeed = 25.0;
         [JsonProperty("scroll_direction")] public string ManiaScrollDirectionUp = "down";
     }

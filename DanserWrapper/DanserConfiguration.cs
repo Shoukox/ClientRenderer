@@ -28,5 +28,6 @@ namespace DanserWrapper
         public bool Leaderboard { get; set; } = false;
         public bool StrainGraph { get; set; } = true;
         public bool MotionBlur { get; set; } = false;
+        public double CursorSize { get; set; } = 1.0;
     }
 }
