@@ -1,7 +1,5 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.ViewModels;
 
 namespace ClientRenderer.GUI.Views

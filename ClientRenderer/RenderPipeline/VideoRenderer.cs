@@ -5,6 +5,9 @@ using ClientRenderer.Models;
 using DanserWrapper;
 using ExperimentalRendererWrapper;
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace ClientRenderer.RenderPipeline
@@ -51,7 +54,7 @@ namespace ClientRenderer.RenderPipeline
 
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully uploaded");
             await thumbnailRenderer.RenderThumbnail(info, serverConnection, cancellationToken);
-
+            await SetVideoDurationInSecondsAsync(info, cancellationToken);
             try
             {
                 await serverConnection.SetRenderJobMetadata(info.RenderJob);
@@ -210,6 +213,74 @@ namespace ClientRenderer.RenderPipeline
             }
 
             return true;
+        }
+
+        public async Task SetVideoDurationInSecondsAsync(RenderPipelineInfo info, CancellationToken cancellationToken, int timeoutMs = 10_000)
+        {
+            string FfprobePath = Path.Combine(Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath)!, "ffprobe.exe");
+            var psi = new ProcessStartInfo
+            {
+                FileName = FfprobePath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            psi.ArgumentList.Add("-v");
+            psi.ArgumentList.Add("error");
+            psi.ArgumentList.Add("-show_entries");
+            psi.ArgumentList.Add("format=duration");
+            psi.ArgumentList.Add("-of");
+            psi.ArgumentList.Add("json");
+            psi.ArgumentList.Add(info.VideoPath);
+
+            using var process = Process.Start(psi)
+                ?? throw new InvalidOperationException("Could not start ffprobe.");
+
+            string output = await process.StandardOutput.ReadToEndAsync();
+            string error = await process.StandardError.ReadToEndAsync();
+
+            using var timeoutCts = new CancellationTokenSource(timeoutMs);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            try
+            {
+                await process.WaitForExitAsync(linkedCts.Token);
+
+                if (process.ExitCode != 0)
+                {
+                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Failed to calculate a video duration! Skipping...");
+                    return;
+                }
+
+                using var doc = JsonDocument.Parse(output);
+                string durationString = doc.RootElement
+                    .GetProperty("format")
+                    .GetProperty("duration")
+                    .GetString()
+                    ?? throw new InvalidOperationException("Could not read duration.");
+
+                double seconds = double.Parse(durationString, CultureInfo.InvariantCulture);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Video duration: {seconds} seconds.");
+                info.RenderJob.VideoDuration = (int)seconds;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (!process.HasExited)
+                    process.Kill(true);
+
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to calculate a video duration. Cancelled.");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                if (!process.HasExited)
+                    process.Kill(true);
+
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to calculate a video duration! Skipping...");
+                Logger.LogError(ex.ToString());
+                return;
+            }
         }
     }
 }

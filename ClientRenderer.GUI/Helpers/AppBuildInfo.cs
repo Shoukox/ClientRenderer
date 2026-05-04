@@ -1,10 +1,9 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Reflection;
 
 namespace ClientRenderer.GUI.Helpers
 {
-    public static class AppBuildInfo    
+    public static class AppBuildInfo
     {
         private static readonly Assembly Assembly = typeof(AppBuildInfo).Assembly;
 

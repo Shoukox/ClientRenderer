@@ -1,6 +1,4 @@
-﻿using DanserWrapper;
-
-namespace ClientRenderer.Models
+﻿namespace ClientRenderer.Models
 {
     public record RenderJob
     {
@@ -11,6 +9,7 @@ namespace ClientRenderer.Models
         public string MapName { get; set; } = "Unknown";
         public string VideoThumbnailUri { get; set; } = "";
         public string VideoThumbnailLocalPath { get; set; } = "";
+        public int VideoDuration { get; set; } = 0;
         public string ReplayPath { get; set; } = "";
         public DateTime RequestedAt { get; set; }
         public string RequestedBy { get; set; } = null!;

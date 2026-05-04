@@ -6,7 +6,6 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Reflection;
 
 namespace ClientRenderer.Connection
 {
@@ -242,6 +241,7 @@ namespace ClientRenderer.Connection
             hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
             hrm.Headers.TryAddWithoutValidation("PlayerName", renderJob.PlayerName);
             hrm.Headers.TryAddWithoutValidation("MapName", renderJob.MapName);
+            hrm.Headers.TryAddWithoutValidation("Duration", renderJob.VideoDuration.ToString());
             using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
             if (await HandleExpectedRendererStateResponseAsync(response, "SetRenderJobMetadata", renderJob.JobId))
             {

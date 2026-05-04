@@ -17,7 +17,7 @@ namespace ClientRenderer.RenderPipeline
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = FfmpegPath,
-                ArgumentList = { "-y", "-sseof", "-1", "-i", info.VideoPath, "-frames:v", "1" , "-vf", "scale='min(1280,iw)':-2", "-q:v", "15", thumbnailPath },
+                ArgumentList = { "-y", "-sseof", "-1", "-i", info.VideoPath, "-frames:v", "1", "-vf", "scale='min(1280,iw)':-2", "-q:v", "15", thumbnailPath },
                 WorkingDirectory = Path.GetDirectoryName(AppContext.BaseDirectory),
 
                 UseShellExecute = false,
@@ -55,17 +55,11 @@ namespace ClientRenderer.RenderPipeline
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render/upload a thumbnail! Cancelled.");
                 throw;
             }
-            catch (OperationCanceledException ex)
+            catch (Exception ex)
             {
                 if (!process.HasExited)
                     process.Kill(true);
 
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render/upload a thumbnail! Cancelled???");
-                Logger.LogError(ex.ToString());
-                return false;
-            }
-            catch (Exception ex)
-            {
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render/upload a thumbnail! Skipping...");
                 Logger.LogError(ex.ToString());
                 return false;

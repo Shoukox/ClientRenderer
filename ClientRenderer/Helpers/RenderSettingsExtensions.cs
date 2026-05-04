@@ -2,11 +2,6 @@
 using DanserWrapper;
 using ExperimentalRendererWrapper;
 using ExperimentalRendererWrapper.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ClientRenderer.Helpers
 {
@@ -55,7 +50,7 @@ namespace ClientRenderer.Helpers
                 FFmpegOptions = new FFmpegOptionsObject
                 {
                     Mode = "Pipe",
-                    LibrariesPath = Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath),
+                    LibrariesPath = Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath)!,
                     Executable = ExperimentalRenderer.FfmpegPath,
                     VideoEncoder = renderSettings.Encoder,
                     VideoEncoderPreset = MapExperimentalEncoderPreset(renderSettings.Encoder),

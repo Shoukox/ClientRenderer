@@ -1,10 +1,10 @@
 using ClientRenderer.Abstractions;
 using ClientRenderer.Connection;
+using ClientRenderer.Helpers;
 using ClientRenderer.Logging;
 using ClientRenderer.Render;
 using ClientRenderer.RenderPipeline;
 using ClientRenderer.Startup;
-using ClientRenderer.Helpers;
 using DanserWrapper;
 using ExperimentalRendererWrapper;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,7 +92,7 @@ namespace ClientRenderer.GUI.Services
 
                 if (waitForOnline)
                 {
-                    while(_state is not RendererServiceState.Online and not RendererServiceState.Failed)
+                    while (_state is not RendererServiceState.Online and not RendererServiceState.Failed)
                     {
                         await Task.Delay(500).ConfigureAwait(false);
                         lock (_sync)
@@ -182,7 +182,7 @@ namespace ClientRenderer.GUI.Services
                     _runCancellationTokenSource = null;
                 }
 
-                if(_state != RendererServiceState.Failed)
+                if (_state != RendererServiceState.Failed)
                 {
                     setStatus(RendererServiceState.Offline, 0);
                 }

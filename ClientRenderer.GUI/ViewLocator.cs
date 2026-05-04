@@ -1,8 +1,8 @@
-using System;
-using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using ClientRenderer.GUI.ViewModels;
+using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ClientRenderer.GUI
 {

@@ -1,8 +1,8 @@
-using System;
-using System.Runtime.Versioning;
 using Avalonia;
 using ClientRenderer.GUI.Services;
 using ClientRenderer.Logging;
+using System;
+using System.Runtime.Versioning;
 using Velopack;
 
 namespace ClientRenderer.GUI

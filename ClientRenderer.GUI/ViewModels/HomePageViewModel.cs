@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace ClientRenderer.GUI.ViewModels
+﻿namespace ClientRenderer.GUI.ViewModels
 {
     public partial class HomePageViewModel : ViewModelBase
     {
