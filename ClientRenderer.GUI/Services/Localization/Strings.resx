@@ -129,6 +129,12 @@
   <data name="Tray.Exit" xml:space="preserve">
     <value>Exit</value>
   </data>
+  <data name="Tray.ExitConfirm.Title" xml:space="preserve">
+    <value>Warning</value>
+  </data>
+  <data name="Tray.ExitConfirm.Message" xml:space="preserve">
+    <value>Rendering is still in progress. Are you sure you want to exit?</value>
+  </data>
   <data name="Nav.Console" xml:space="preserve">
     <value>Console</value>
   </data>

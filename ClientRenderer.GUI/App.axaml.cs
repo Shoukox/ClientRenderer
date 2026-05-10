@@ -9,6 +9,9 @@ using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.Services.Localization;
 using ClientRenderer.GUI.ViewModels;
 using ClientRenderer.GUI.Views;
+using MsBox.Avalonia;
+using MsBox.Avalonia.Base;
+using MsBox.Avalonia.Enums;
 using System;
 using System.IO;
 using System.Linq;
@@ -154,8 +157,24 @@ namespace ClientRenderer.GUI
                 ShowAndActivateMainWindow(desktop);
         }
 
-        public void Tray_Exit_OnClick(object? sender, EventArgs e)
+        public async void Tray_Exit_OnClick(object? sender, EventArgs e)
         {
+            if (RendererService.Instance.IsRenderingRightNow)
+            {
+                IMsBox<ButtonResult> messageBox = MessageBoxManager.GetMessageBoxStandard(
+                    Localizer["Tray.ExitConfirm.Title"],
+                    Localizer["Tray.ExitConfirm.Message"],
+                    ButtonEnum.YesNo,
+                    Icon.Warning);
+
+                ButtonResult result = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                    ? await messageBox.ShowWindowDialogAsync(desktop.MainWindow!)
+                    : await messageBox.ShowAsync();
+
+                if (result != ButtonResult.Yes)
+                    return;
+            }
+
             switch (ApplicationLifetime)
             {
                 case IClassicDesktopStyleApplicationLifetime desktopLifetime:
