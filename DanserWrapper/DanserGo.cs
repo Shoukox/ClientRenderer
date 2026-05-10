@@ -226,4 +226,6 @@ public static class DanserGo
             Directory.CreateDirectory(ScreenshotsPath);
         }
     }
+
+    public static bool BeatmapDirectoryExists(string beatmapHashWithOszExtension) => Directory.Exists(Path.Combine(SongsPath, beatmapHashWithOszExtension));
 }

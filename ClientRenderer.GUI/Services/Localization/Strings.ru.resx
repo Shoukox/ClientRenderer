@@ -129,6 +129,12 @@
   <data name="Tray.Exit" xml:space="preserve">
     <value>Выход</value>
   </data>
+  <data name="Tray.ExitConfirm.Title" xml:space="preserve">
+    <value>Предупреждение</value>
+  </data>
+  <data name="Tray.ExitConfirm.Message" xml:space="preserve">
+    <value>Рендеринг ещё не завершён. Вы действительно хотите выйти?</value>
+  </data>
   <data name="Nav.Console" xml:space="preserve">
     <value>Консоль</value>
   </data>

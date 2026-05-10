@@ -15,20 +15,18 @@ namespace ClientRenderer.Utils
                                             {
                                                 if (hrm.Exception != null)
                                                 {
-                                                    LogError($"An exception occured. Retrying...\n{hrm.Exception}");
+                                                    Logger.LogError($"[HttpRetryHandler] An exception occured. Retrying... See logs for details. {hrm.Exception.Message}");
+                                                    Logger.LogDebug($"[HttpRetryHandler] An exception occured. Retrying... {hrm.Exception}");
                                                 }
                                                 else if (hrm.Result != null)
                                                 {
-                                                    LogError($"A request was unsuccessful. {hrm.Result.ReasonPhrase}. Retrying...");
+                                                    Logger.LogError($"[HttpRetryHandler] An exception occured. Retrying... See logs for details. {hrm.Result.ReasonPhrase}");
+                                                    Logger.LogDebug($"[HttpRetryHandler] A request was unsuccessful. Retrying... {hrm.Result}");
                                                 }
                                             });
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             return RetryPolicy.ExecuteAsync(() => base.SendAsync(request, cancellationToken));
-        }
-        private static void LogError(string message)
-        {
-            Logger.LogError($"[HttpRetryHandler] {message}");
         }
     }
 }

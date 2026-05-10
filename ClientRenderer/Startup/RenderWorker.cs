@@ -1,4 +1,5 @@
 using ClientRenderer.Abstractions;
+using ClientRenderer.Helpers;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 
@@ -6,6 +7,7 @@ namespace ClientRenderer.Startup;
 
 public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection serverConnection, string chosenEncoder) : IRenderWorker
 {
+    public event Action<bool>? RenderingStatus;
     private static async Task<bool> IsServerCancelledAsync(int jobId, IServerConnection serverConnection)
     {
         var renderJob = await serverConnection.GetRenderJobInfo(jobId);
@@ -46,7 +48,10 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                 }
 
                 if (renderJob is null)
-                    break;
+                {
+                    Logger.LogWarning($"Got a null render job...");
+                    continue;
+                }
 
                 if (await IsServerCancelledAsync(renderJob.JobId, serverConnection))
                 {
@@ -66,8 +71,10 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                 using var renderCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 var renderCancellationMonitor = MonitorRenderCancellationAsync(renderJob.JobId, serverConnection, renderCancellationTokenSource);
 
+                RenderingStatus?.Invoke(true);
                 try
                 {
+                    WindowsSleepPreventerHelper.PreventSleepAndDisplayOff();
                     await videoRenderer.RenderVideo(info, serverConnection, renderCancellationTokenSource.Token);
                 }
                 finally
@@ -80,6 +87,9 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                     catch (OperationCanceledException)
                     {
                     }
+
+                    WindowsSleepPreventerHelper.AllowSleep();
+                    RenderingStatus?.Invoke(false);
                 }
             }
             catch (OperationCanceledException)

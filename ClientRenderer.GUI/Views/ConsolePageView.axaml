@@ -6,7 +6,7 @@
 			 x:DataType="vm:ConsolePageViewModel"
 			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
 			 x:Class="ClientRenderer.GUI.Views.ConsolePageView">
-	<Border Classes="console-root">
+	<Border Classes="console-root" Background="{Binding ConsoleBackground}">
 		<Grid RowDefinitions="Auto,*">
 			<Border Grid.Row="0" Classes="console-toolbar">
 				<Grid ColumnDefinitions="Auto, *, Auto">

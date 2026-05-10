@@ -17,7 +17,7 @@ namespace ClientRenderer.GUI.ViewModels
         private ViewModelBase _currentPage;
 
         private readonly HomePageViewModel _homePage = new();
-        private readonly StatusPageViewModel _statusPage = new();
+        private readonly StatusPageViewModel _statusPage = StatusPageViewModel.Instance;
         private readonly ConsolePageViewModel _consolePage = ConsolePageViewModel.Instance;
         private readonly SettingsPageViewModel _settingsPage = new();
 

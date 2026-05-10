@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -47,7 +46,7 @@ namespace ClientRenderer.GUI.ViewModels
 
         public IBrush ConsoleBackgroundNormal;
         public IBrush ConsoleBackgroundError;
-        public IBrush ConsoleBackground => StatusPageViewModel.Instance.IsFailed ? ConsoleBackgroundError : ConsoleBackgroundNormal;
+        public IBrush ConsoleBackground => StatusPageViewModel.Instance.IsServerOnline ? ConsoleBackgroundNormal : ConsoleBackgroundError;
 
         private ConsolePageViewModel()
         {
@@ -103,7 +102,7 @@ namespace ClientRenderer.GUI.ViewModels
 
         private void OnStatusPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName != nameof(StatusPageViewModel.IsFailed))
+            if (e.PropertyName != nameof(StatusPageViewModel.IsServerOnline))
                 return;
 
             if (Dispatcher.UIThread.CheckAccess())

@@ -1,6 +1,7 @@
 ﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
 					xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 	<SolidColorBrush x:Key="Console.Background">#9F360254</SolidColorBrush>
+	<SolidColorBrush x:Key="Console.BackgroundError">#1EFF0004</SolidColorBrush>
 	<SolidColorBrush x:Key="Console.ToolbarBackground">Transparent</SolidColorBrush>
 	<SolidColorBrush x:Key="Console.Border">#FF620187</SolidColorBrush>
 	<SolidColorBrush x:Key="Console.Title">#C7D2FE</SolidColorBrush>

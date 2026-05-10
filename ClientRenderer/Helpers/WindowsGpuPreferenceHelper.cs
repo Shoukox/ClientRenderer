@@ -35,6 +35,7 @@ public static class WindowsGpuPreferenceHelper
 
         foreach (var executablePath in normalizedPaths)
         {
+            if (gpuPreferencesKey.GetValue(executablePath, null) is string value && value == HighPerformancePreferenceValue) continue;
             gpuPreferencesKey.SetValue(executablePath, HighPerformancePreferenceValue, RegistryValueKind.String);
             Logger.Log($"Configured high-performance GPU preference for: {executablePath}");
         }

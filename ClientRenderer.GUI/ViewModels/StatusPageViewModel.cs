@@ -17,6 +17,8 @@ namespace ClientRenderer.GUI.ViewModels
 {
     public partial class StatusPageViewModel : ViewModelBase
     {
+        public static StatusPageViewModel Instance { get; } = new();
+
         private readonly LocalizationService _localizer = App.Localizer;
         private readonly RendererService _rendererService = RendererService.Instance;
         private readonly UpdateService _updateService = UpdateService.Instance;
@@ -34,6 +36,9 @@ namespace ClientRenderer.GUI.ViewModels
 
         [ObservableProperty]
         private bool _isServerOnline;
+
+        [ObservableProperty]
+        private bool _isFailed;
 
         [ObservableProperty]
         private bool _isStarting;
@@ -124,6 +129,7 @@ namespace ClientRenderer.GUI.ViewModels
                 RendererServiceState.Failed => _localizer["Page.Status.State.Failed"],
                 _ => _localizer["Page.Status.State.Offline"]
             };
+            IsFailed = status.State == RendererServiceState.Failed;
 
             HeartbeatFailuresLabel = string.Format(
                 CultureInfo.CurrentCulture,

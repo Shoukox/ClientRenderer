@@ -136,7 +136,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
         info.BeatmapsetDirectoryPath = Path.Combine(DanserGo.SongsPath, oszFileName);
         LoadAllBeatmapsHashes();
 
-        if (!BeatmapExists(info.BeatmapHash))
+        if (!BeatmapExists(info.BeatmapHash) || !DanserGo.BeatmapDirectoryExists(info.BeatmapsetDirectoryPath))
         {
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] The requested beatmap does not exist!");
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading beatmapset...");

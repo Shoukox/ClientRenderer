@@ -42,6 +42,8 @@ namespace ClientRenderer.GUI.Services
         private int _consecutiveHeartbeatFailures;
         private ServerConnection? _serverConnection;
 
+        public bool IsRenderingRightNow = false;
+
         public event Action<RendererStatusSnapshot>? StatusChanged;
 
         public RendererStatusSnapshot Status
@@ -149,8 +151,14 @@ namespace ClientRenderer.GUI.Services
                     await Task.Delay(5000, cancellationToken);
                 }
 
+                IRenderWorker renderWorker = runtimeServices.GetRequiredService<IRenderWorker>();
+                renderWorker.RenderingStatus += isRendering =>
+                {
+                    IsRenderingRightNow = isRendering;
+                    Logger.Log($"Rendering status changed: {(isRendering ? "Rendering" : "Idle")}");
+                };
                 if (!cancellationToken.IsCancellationRequested)
-                    await runtimeServices.GetRequiredService<IRenderWorker>().RunAsync(cancellationToken);
+                    await renderWorker.RunAsync(cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
