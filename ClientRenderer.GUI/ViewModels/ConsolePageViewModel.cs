@@ -1,11 +1,15 @@
+using Avalonia;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using ClientRenderer.GUI.Services.Localization;
 using ClientRenderer.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Serilog.Events;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,14 +42,26 @@ namespace ClientRenderer.GUI.ViewModels
         [NotifyPropertyChangedFor(nameof(CopyIcon))]
         [NotifyPropertyChangedFor(nameof(CopyIconBrush))]
         private bool _isCopied;
-
         public string CopyIcon => IsCopied ? "\u2713" : "\u2398";
         public IBrush CopyIconBrush => IsCopied ? Brushes.LimeGreen : Brushes.White;
 
+        public IBrush ConsoleBackgroundNormal;
+        public IBrush ConsoleBackgroundError;
+        public IBrush ConsoleBackground => StatusPageViewModel.Instance.IsFailed ? ConsoleBackgroundError : ConsoleBackgroundNormal;
+
         private ConsolePageViewModel()
         {
+            if (!App.Current!.TryGetResource("Console.Background", ThemeVariant.Default, out object? backgroundNormalResource)
+             || !App.Current!.TryGetResource("Console.BackgroundError", ThemeVariant.Default, out object? backgroundErrorResource))
+            {
+                throw new KeyNotFoundException("Console background resources were not found.");
+            }
+            ConsoleBackgroundNormal = (IBrush)backgroundNormalResource!;
+            ConsoleBackgroundError = (IBrush)backgroundErrorResource!;
+
             UpdateLocalizedText();
             _localizer.LanguageChanged += (_, _) => UpdateLocalizedText();
+            StatusPageViewModel.Instance.PropertyChanged += OnStatusPagePropertyChanged;
             Logger.MessageLogged += OnMessageLogged;
         }
 
@@ -72,8 +88,10 @@ namespace ClientRenderer.GUI.ViewModels
             Title = _localizer["Page.Console.Title"];
         }
 
-        private void OnMessageLogged(string text)
+        private void OnMessageLogged(LogEventLevel level, string text)
         {
+            if (level is LogEventLevel.Verbose or LogEventLevel.Debug) return;
+
             if (Dispatcher.UIThread.CheckAccess())
             {
                 AddLine(text);
@@ -81,6 +99,20 @@ namespace ClientRenderer.GUI.ViewModels
             }
 
             Dispatcher.UIThread.Post(() => AddLine(text));
+        }
+
+        private void OnStatusPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(StatusPageViewModel.IsFailed))
+                return;
+
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                OnPropertyChanged(nameof(ConsoleBackground));
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(ConsoleBackground)));
         }
 
         private void enqueueLine(string line)
