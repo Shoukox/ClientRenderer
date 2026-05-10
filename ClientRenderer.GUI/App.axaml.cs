@@ -15,6 +15,7 @@ using MsBox.Avalonia.Enums;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace ClientRenderer.GUI
 {
@@ -159,21 +160,7 @@ namespace ClientRenderer.GUI
 
         public async void Tray_Exit_OnClick(object? sender, EventArgs e)
         {
-            if (RendererService.Instance.IsRenderingRightNow)
-            {
-                IMsBox<ButtonResult> messageBox = MessageBoxManager.GetMessageBoxStandard(
-                    Localizer["Tray.ExitConfirm.Title"],
-                    Localizer["Tray.ExitConfirm.Message"],
-                    ButtonEnum.YesNo,
-                    Icon.Warning);
-
-                ButtonResult result = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                    ? await messageBox.ShowWindowDialogAsync(desktop.MainWindow!)
-                    : await messageBox.ShowAsync();
-
-                if (result != ButtonResult.Yes)
-                    return;
-            }
+            await ShowWarningMessageBoxBeforeClosing(ApplicationLifetime);
 
             switch (ApplicationLifetime)
             {
@@ -187,6 +174,32 @@ namespace ClientRenderer.GUI
                     Environment.Exit(0);
                     break;
             }
+        }
+
+        /// <summary>
+        /// Shows a warning message box if the renderer is currently rendering, asking the user to confirm if they really want to close the app and lose the current rendering progress. Should be called before actually closing the app.
+        /// </summary>
+        /// <param name="applicationLifetime"></param>
+        /// <returns>true if app should be closed</returns>
+        public static async Task<bool> ShowWarningMessageBoxBeforeClosing(IApplicationLifetime? applicationLifetime)
+        {
+            if (RendererService.Instance.IsRenderingRightNow)
+            {
+                IMsBox<ButtonResult> messageBox = MessageBoxManager.GetMessageBoxStandard(
+                    Localizer["Tray.ExitConfirm.Title"],
+                    Localizer["Tray.ExitConfirm.Message"],
+                    ButtonEnum.YesNo,
+                    Icon.Warning);
+
+                ButtonResult result = applicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                    ? await messageBox.ShowWindowDialogAsync(desktop.MainWindow!)
+                    : await messageBox.ShowAsync();
+
+                if (result != ButtonResult.Yes)
+                    return true;
+            }
+
+            return false;
         }
     }
 }

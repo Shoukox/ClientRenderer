@@ -1,5 +1,7 @@
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
+using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.ViewModels;
 
 namespace ClientRenderer.GUI.Views
@@ -19,7 +21,7 @@ namespace ClientRenderer.GUI.Views
                     or WindowCloseReason.OSShutdown
                     or WindowCloseReason.Undefined)
                 {
-                    e.Cancel = false;
+                    e.Cancel = RendererService.Instance.IsRenderingRightNow;
                     return;
                 }
 
@@ -30,8 +32,7 @@ namespace ClientRenderer.GUI.Views
                     return;
                 }
 
-                //RendererService.Instance.Dispose();
-                e.Cancel = false;
+                e.Cancel = !App.ShowWarningMessageBoxBeforeClosing(App.Current!.ApplicationLifetime).Result;
             };
         }
 
