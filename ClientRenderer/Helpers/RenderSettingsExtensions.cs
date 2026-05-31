@@ -54,7 +54,7 @@ namespace ClientRenderer.Helpers
                     Executable = ExperimentalRenderer.FfmpegPath,
                     VideoEncoder = renderSettings.Encoder,
                     VideoEncoderPreset = MapExperimentalEncoderPreset(renderSettings.Encoder),
-                    VideoEncoderBitrate = "5M"
+                    VideoEncoderBitrate = "7M"
                 },
                 OutputOptions = new OutputOptionsObject
                 {
