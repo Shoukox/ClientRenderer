@@ -25,5 +25,6 @@
         public bool StrainGraph { get; set; } = true;
         public bool MotionBlur { get; set; } = false;
         public double CursorSize { get; set; } = 1.0;
+        public bool SkipIntro { get; set; } = true;
     }
 }

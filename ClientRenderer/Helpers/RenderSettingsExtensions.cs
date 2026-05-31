@@ -62,7 +62,7 @@ namespace ClientRenderer.Helpers
                 },
                 GameSettings = new GameSettings
                 {
-                    SkipIntro = false,
+                    SkipIntro = renderSettings.SkipIntro,
                     BackgroundDim = renderSettings.BackgroundDim,
                     ShowStoryboard = renderSettings.Storyboard || renderSettings.Video,
                     BeatmapHitsounds = false,

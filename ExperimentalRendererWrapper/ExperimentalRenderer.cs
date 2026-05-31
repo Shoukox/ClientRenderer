@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -42,38 +43,34 @@ namespace ExperimentalRendererWrapper
             var errorStringBuilder = new StringBuilder();
 
             bool audioDecoded = false;
+
+            var progressRegex = new Regex(@"Progress: (\d+).(\d*)%", RegexOptions.Compiled);
+            void MatchProgress(string line)
+            {
+                var matchProgress = progressRegex.Match(line);
+                if (matchProgress.Success)
+                {
+                    var progress = int.Parse(matchProgress.Groups[1].Value) + int.Parse(matchProgress.Groups[2].Value) / Math.Pow(10, matchProgress.Groups[2].Value.Length);
+                    renderUpdates["Progress"] = $"{progress / 100}";
+                }
+            }
+
             process.OutputDataReceived += (_, e) =>
             {
                 if (string.IsNullOrWhiteSpace(e.Data))
                     return;
                 outputStringBuilder.AppendLine(e.Data);
 
-                if (e.Data.Contains("Audio decoded in "))
-                {
-                    audioDecoded = true;
-                }
+                MatchProgress(e.Data);
             };
 
-            var progressRegex = new Regex(@"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})", RegexOptions.Compiled);
             process.ErrorDataReceived += (_, e) =>
             {
                 if (string.IsNullOrWhiteSpace(e.Data))
                     return;
                 errorStringBuilder.AppendLine(e.Data);
 
-                // Match progress
-                var matchProgress = progressRegex.Match(e.Data);
-                if (matchProgress.Success && audioDecoded)
-                {
-                    var hours = int.Parse(matchProgress.Groups[1].Value);
-                    var minutes = int.Parse(matchProgress.Groups[2].Value);
-                    var seconds = int.Parse(matchProgress.Groups[3].Value);
-                    var ms = int.Parse(matchProgress.Groups[4].Value) * 10;
-
-                    int secondsRendered = hours * 3600 + minutes * 60 + seconds + (int)Math.Round(ms / 1000.0);
-                    int beatmapLength = int.Parse(renderUpdates["BeatmapLength"]);
-                    renderUpdates["Progress"] = $"{secondsRendered / (double)beatmapLength}";
-                }
+                MatchProgress(e.Data);
             };
 
             process.Start();

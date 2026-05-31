@@ -15,12 +15,10 @@ namespace ClientRenderer.Utils
                                             {
                                                 if (hrm.Exception != null)
                                                 {
-                                                    Logger.LogError($"[HttpRetryHandler] An exception occured. Retrying... See logs for details. {hrm.Exception.Message}");
                                                     Logger.LogDebug($"[HttpRetryHandler] An exception occured. Retrying... {hrm.Exception}");
                                                 }
                                                 else if (hrm.Result != null)
                                                 {
-                                                    Logger.LogError($"[HttpRetryHandler] An exception occured. Retrying... See logs for details. {hrm.Result.ReasonPhrase}");
                                                     Logger.LogDebug($"[HttpRetryHandler] A request was unsuccessful. Retrying... {hrm.Result}");
                                                 }
                                             });

@@ -78,7 +78,7 @@ namespace ClientRenderer.RenderPipeline
 
             try
             {
-                string[] arguments =
+                List<string> arguments =
                 [
                     "-r",
                     info.ReplayPath,
@@ -86,6 +86,10 @@ namespace ClientRenderer.RenderPipeline
                     Path.GetFileNameWithoutExtension(info.VideoPath),
                     "-preciseprogress"
                 ];
+                if(info.RenderJob.RenderSettings.SkipIntro)
+                {
+                    arguments.Add("-skip");
+                }
                 Task<DanserResult> renderTask = DanserGo.ExecuteAsync(arguments, renderUpdates, cancellationToken: cancellationToken);
 
                 while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
