@@ -11,6 +11,9 @@ namespace ClientRenderer.Render;
 
 public class BeatmapsetsDownloader : IBeatmapsetsDownloader
 {
+    private const string BeatmapNotFoundFailureReason = "beatmap_not_found";
+    private const string BeatmapsetDownloadFailedFailureReason = "beatmapset_download_failed";
+
     private static HttpClient s_HttpClient { get; } = new() { Timeout = TimeSpan.FromSeconds(10) };
 
     private readonly ConcurrentDictionary<string, BeatmapsetInfo> _hashToValues = new();
@@ -125,7 +128,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             oszStreamCopy.Position = 0;
 
             if (oszStreamCopy.Length == 0)
-                return Result.FromFailure(new InvalidDataException("Downloaded beatmapset is empty."));
+                return Result.FromFailure(new InvalidDataException("The downloaded beatmapset is empty."));
 
             string tempSuffix = $".download-{Guid.NewGuid():N}";
             string tempBeatmapsetDirectoryPath = info.BeatmapsetDirectoryPath + tempSuffix;
@@ -143,7 +146,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                 ZipFile.ExtractToDirectory(oszStreamCopy, tempBeatmapsetDirectoryPath);
 
                 if (!await BeatmapsetDirectoryContainsHash(tempBeatmapsetDirectoryPath, info.BeatmapHash))
-                    return Result.FromFailure(new InvalidDataException("Downloaded beatmapset archive does not contain the requested beatmap."));
+                    return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive does not contain the requested beatmap."));
 
                 if (Directory.Exists(info.BeatmapsetDirectoryPath))
                     Directory.Delete(info.BeatmapsetDirectoryPath, true);
@@ -162,7 +165,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             }
             catch (InvalidDataException ex)
             {
-                return Result.FromFailure(new InvalidDataException("Downloaded beatmapset archive is corrupt or is not a valid .osz/.zip file.", ex));
+                return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive is corrupt or is not a valid .osz/.zip file.", ex));
             }
             catch (Exception ex)
             {
@@ -225,7 +228,11 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             var downloadResult = await DownloadAndSaveValidBeatmapset(info);
             if (!downloadResult.Success)
             {
-                await serverConnection.Failure(info.RenderJob.JobId, "beatmapset_download_failed", false);
+                string failureReason = downloadResult.Exception is KeyNotFoundException
+                    ? BeatmapNotFoundFailureReason
+                    : BeatmapsetDownloadFailedFailureReason;
+
+                await serverConnection.Failure(info.RenderJob.JobId, failureReason, false);
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to download a valid beatmapset!");
                 Logger.LogError($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
                 return false;
@@ -234,7 +241,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             LoadAllBeatmapsHashes(force: true);
             if (!BeatmapExists(info.BeatmapHash))
             {
-                await serverConnection.Failure(info.RenderJob.JobId, "beatmapset_download_failed", false);
+                await serverConnection.Failure(info.RenderJob.JobId, BeatmapsetDownloadFailedFailureReason, false);
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset does not contain the requested beatmap!");
                 return false;
             }

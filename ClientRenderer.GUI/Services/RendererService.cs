@@ -140,7 +140,12 @@ namespace ClientRenderer.GUI.Services
                     .AddSingleton<ISkinsDownloader, SkinsDownloader>()
                     .AddSingleton<IThumbnailRenderer, ThumbnailRenderer>()
                     .AddSingleton<IVideoRenderer, VideoRenderer>()
-                    .AddSingleton<IRenderWorker>(sp => new RenderWorker(sp.GetRequiredService<IVideoRenderer>(), sp.GetRequiredService<IServerConnection>(), encoder))
+                    .AddSingleton<IAutomaticUpdateService, VelopackAutomaticUpdateService>()
+                    .AddSingleton<IRenderWorker>(sp => new RenderWorker(
+                        sp.GetRequiredService<IVideoRenderer>(),
+                        sp.GetRequiredService<IServerConnection>(),
+                        encoder,
+                        sp.GetRequiredService<IAutomaticUpdateService>()))
                     .BuildServiceProvider();
 
                 Logger.Log("osu! api v2 credentials loaded. They will be validated on the first real API request.");

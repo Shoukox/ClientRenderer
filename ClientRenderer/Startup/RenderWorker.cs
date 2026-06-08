@@ -5,9 +5,12 @@ using ClientRenderer.Models;
 
 namespace ClientRenderer.Startup;
 
-public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection serverConnection, string chosenEncoder) : IRenderWorker
+public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection serverConnection, string chosenEncoder, IAutomaticUpdateService? automaticUpdateService = null) : IRenderWorker
 {
     public event Action<bool>? RenderingStatus;
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(1);
+    private DateTimeOffset _nextUpdateCheckAt = DateTimeOffset.UtcNow + UpdateCheckInterval;
+
     private static async Task<bool> IsServerCancelledAsync(int jobId, IServerConnection serverConnection)
     {
         var renderJob = await serverConnection.GetRenderJobInfo(jobId);
@@ -38,12 +41,15 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
         {
             try
             {
+                await CheckForUpdatesIfDueAsync(cancellationToken);
+
                 Logger.Log("Waiting for new jobs...");
                 var renderJob = await serverConnection.GetNextRenderJob();
                 while (renderJob is null && !cancellationToken.IsCancellationRequested)
                 {
                     Logger.LogError("Received a null render job, polling again in 5 seconds...");
                     await Task.Delay(5000, cancellationToken);
+                    await CheckForUpdatesIfDueAsync(cancellationToken);
                     renderJob = await serverConnection.GetNextRenderJob();
                 }
 
@@ -139,5 +145,14 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                 info = null;
             }
         }
+    }
+
+    private async Task CheckForUpdatesIfDueAsync(CancellationToken cancellationToken)
+    {
+        if (automaticUpdateService == null || DateTimeOffset.UtcNow < _nextUpdateCheckAt)
+            return;
+
+        _nextUpdateCheckAt = DateTimeOffset.UtcNow + UpdateCheckInterval;
+        await automaticUpdateService.CheckForUpdatesAsync(cancellationToken);
     }
 }
