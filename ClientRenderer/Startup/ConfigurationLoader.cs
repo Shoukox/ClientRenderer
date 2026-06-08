@@ -2,17 +2,22 @@ using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using System.Text.Json;
+using Velopack.Locators;
 
 namespace ClientRenderer.Startup;
 
 public sealed class ConfigurationLoader : IConfigurationLoader
 {
+    private const string SettingsDirectoryName = "settings";
+
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public async Task<AppConfiguration> LoadAsync()
     {
-        string settingsDirectory = Path.Combine(AppContext.BaseDirectory, "settings");
+        string legacySettingsDirectory = Path.Combine(AppContext.BaseDirectory, SettingsDirectoryName);
+        string settingsDirectory = GetSettingsDirectory();
         Directory.CreateDirectory(settingsDirectory);
+        MigrateLegacySettingsDirectory(legacySettingsDirectory, settingsDirectory);
 
         string cookieFile = Path.Combine(settingsDirectory, "cookie.txt");
         if (!File.Exists(cookieFile))
@@ -43,6 +48,35 @@ public sealed class ConfigurationLoader : IConfigurationLoader
             OsuApiV2Configuration = osuApiConfig,
             RendererCredentials = rendererCredentials
         };
+    }
+
+    private static string GetSettingsDirectory()
+    {
+        if (VelopackLocator.IsCurrentSet && !VelopackLocator.Current.IsPortable && VelopackLocator.Current.RootAppDir is { } rootAppDirectory)
+            return Path.Combine(rootAppDirectory, SettingsDirectoryName);
+
+        return Path.Combine(AppContext.BaseDirectory, SettingsDirectoryName);
+    }
+
+    private static void MigrateLegacySettingsDirectory(string legacySettingsDirectory, string settingsDirectory)
+    {
+        if (Path.GetFullPath(legacySettingsDirectory).Equals(Path.GetFullPath(settingsDirectory), StringComparison.OrdinalIgnoreCase) ||
+            !Directory.Exists(legacySettingsDirectory))
+        {
+            return;
+        }
+
+        foreach (string sourceFile in Directory.EnumerateFiles(legacySettingsDirectory, "*", SearchOption.AllDirectories))
+        {
+            string relativePath = Path.GetRelativePath(legacySettingsDirectory, sourceFile);
+            string destinationFile = Path.Combine(settingsDirectory, relativePath);
+
+            if (File.Exists(destinationFile))
+                continue;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(sourceFile, destinationFile);
+        }
     }
 
     private static async Task ValidateOsuSessionCookie(string osuSessionCookie)

@@ -204,7 +204,7 @@ namespace ClientRenderer.GUI.ViewModels
         }
 
         [RelayCommand]
-        private void OpenClientRendererSettings()
+        private async Task OpenClientRendererSettings()
         {
             try
             {
@@ -214,11 +214,23 @@ namespace ClientRenderer.GUI.ViewModels
             {
                 Logger.LogError(ex.ToString());
             }
-            Process.Start(new ProcessStartInfo
+
+            Process? process = Process.Start(new ProcessStartInfo
             {
                 FileName = App.SettingsProvider.FilePath,
                 UseShellExecute = true
             });
+
+            if (process is not null)
+                await process.WaitForExitAsync();
+
+            ApplicationRestartHelper.RestartApplication();
+        }
+
+        [RelayCommand]
+        private void RestartApplication()
+        {
+            ApplicationRestartHelper.RestartApplication();
         }
 
         [RelayCommand]

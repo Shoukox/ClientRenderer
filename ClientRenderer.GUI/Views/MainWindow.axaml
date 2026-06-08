@@ -7,7 +7,7 @@
 		xmlns:app="using:ClientRenderer.GUI"
 		mc:Ignorable="d"
 		Width="960" Height="540"
-		MinWidth="640" MinHeight="360"
+		MinWidth="720" MinHeight="360"
 		x:Class="ClientRenderer.GUI.Views.MainWindow"
 		x:DataType="vm:MainWindowViewModel"
 		Icon="/Assets/icon.ico"

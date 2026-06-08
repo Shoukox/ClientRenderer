@@ -59,6 +59,11 @@
 									HorizontalAlignment="Left"
 									Content="{Binding Source={x:Static app:App.Localizer}, Path=[Page.Status.OpenLogsFolder]}" />
 						</StackPanel>
+						<StackPanel Orientation="Horizontal" Spacing="7">
+							<Button Command="{Binding RestartApplicationCommand}"
+									HorizontalAlignment="Left"
+									Content="{Binding Source={x:Static app:App.Localizer}, Path=[Page.Status.RestartApplication]}" />
+						</StackPanel>
 					</StackPanel>
 				</Grid>
 			</Border>
