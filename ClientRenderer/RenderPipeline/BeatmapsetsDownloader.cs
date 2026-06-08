@@ -103,7 +103,19 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
         return Result.FromFailure(new Exception("Failed to set beatmapset infos"));
     }
 
-    public async Task SaveBeatmapsetStreamAsFile(RenderPipelineInfo info, Stream beatmapsetStream)
+    private async Task<bool> BeatmapsetDirectoryContainsHash(string beatmapsetDirectoryPath, string beatmapHash)
+    {
+        foreach (string beatmap in Directory.EnumerateFiles(beatmapsetDirectoryPath, "*.osu", SearchOption.AllDirectories))
+        {
+            string md5 = await CreateMd5(beatmap);
+            if (md5.Equals(beatmapHash, StringComparison.InvariantCultureIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    public async Task<Result> SaveBeatmapsetStreamAsFile(RenderPipelineInfo info, Stream beatmapsetStream)
     {
         using (var oszStream = beatmapsetStream)
         {
@@ -112,18 +124,87 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             await oszStream.CopyToAsync(oszStreamCopy);
             oszStreamCopy.Position = 0;
 
-            if (info.UseExperimentalRenderer)
+            if (oszStreamCopy.Length == 0)
+                return Result.FromFailure(new InvalidDataException("Downloaded beatmapset is empty."));
+
+            string tempSuffix = $".download-{Guid.NewGuid():N}";
+            string tempBeatmapsetDirectoryPath = info.BeatmapsetDirectoryPath + tempSuffix;
+            string tempBeatmapsetOszPath = info.BeatmapsetOszPath + tempSuffix;
+
+            try
             {
-                using var fs = new FileStream(info.BeatmapsetOszPath, FileMode.Create, FileAccess.Write);
-                await oszStreamCopy.CopyToAsync(fs);
-                oszStreamCopy.Position = 0;
+                if (info.UseExperimentalRenderer)
+                {
+                    using var fs = new FileStream(tempBeatmapsetOszPath, FileMode.CreateNew, FileAccess.Write);
+                    await oszStreamCopy.CopyToAsync(fs);
+                    oszStreamCopy.Position = 0;
+                }
+
+                ZipFile.ExtractToDirectory(oszStreamCopy, tempBeatmapsetDirectoryPath);
+
+                if (!await BeatmapsetDirectoryContainsHash(tempBeatmapsetDirectoryPath, info.BeatmapHash))
+                    return Result.FromFailure(new InvalidDataException("Downloaded beatmapset archive does not contain the requested beatmap."));
+
+                if (Directory.Exists(info.BeatmapsetDirectoryPath))
+                    Directory.Delete(info.BeatmapsetDirectoryPath, true);
+
+                Directory.Move(tempBeatmapsetDirectoryPath, info.BeatmapsetDirectoryPath);
+
+                if (info.UseExperimentalRenderer)
+                {
+                    if (File.Exists(info.BeatmapsetOszPath))
+                        File.Delete(info.BeatmapsetOszPath);
+
+                    File.Move(tempBeatmapsetOszPath, info.BeatmapsetOszPath);
+                }
+
+                return Result.FromSuccess();
+            }
+            catch (InvalidDataException ex)
+            {
+                return Result.FromFailure(new InvalidDataException("Downloaded beatmapset archive is corrupt or is not a valid .osz/.zip file.", ex));
+            }
+            catch (Exception ex)
+            {
+                return Result.FromFailure(ex);
+            }
+            finally
+            {
+                if (Directory.Exists(tempBeatmapsetDirectoryPath))
+                    Directory.Delete(tempBeatmapsetDirectoryPath, true);
+
+                if (File.Exists(tempBeatmapsetOszPath))
+                    File.Delete(tempBeatmapsetOszPath);
+            }
+        }
+    }
+
+    private async Task<Result> DownloadAndSaveValidBeatmapset(RenderPipelineInfo info)
+    {
+        Exception? lastException = null;
+
+        foreach (var provider in BeatmapsetsProviders)
+        {
+            string providerName = provider.GetType().Name;
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading beatmapset using {providerName}...");
+
+            var downloadResult = await provider.DownloadBeatmapset(info.BeatmapHash);
+            if (!downloadResult.Success)
+            {
+                lastException = downloadResult.Exception;
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] {providerName} failed to download beatmapset: {downloadResult.Exception!.Message}");
+                continue;
             }
 
-            if (Directory.Exists(info.BeatmapsetDirectoryPath))
-                Directory.Delete(info.BeatmapsetDirectoryPath, true);
+            var saveResult = await SaveBeatmapsetStreamAsFile(info, downloadResult.Output!);
+            if (saveResult.Success)
+                return Result.FromSuccess();
 
-            ZipFile.ExtractToDirectory(oszStreamCopy, info.BeatmapsetDirectoryPath);
+            lastException = saveResult.Exception;
+            Logger.LogError($"[JobId:{info.RenderJob!.JobId}] {providerName} returned an invalid beatmapset, trying another provider. Error: {saveResult.Exception!.Message}");
         }
+
+        return Result.FromFailure(lastException ?? new Exception("Failed to download a valid beatmapset."));
     }
 
     public async Task<bool> DownloadBeatmapset(RenderPipelineInfo info, IServerConnection serverConnection)
@@ -141,33 +222,24 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] The requested beatmap does not exist!");
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading beatmapset...");
 
-            var downloadResult = await DownloadBeatmapsetAsStream(info.BeatmapHash);
+            var downloadResult = await DownloadAndSaveValidBeatmapset(info);
             if (!downloadResult.Success)
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "beatmapset_download_failed", false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to download a beatmapset!");
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to download a valid beatmapset!");
                 Logger.LogError($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
                 return false;
             }
 
-            await SaveBeatmapsetStreamAsFile(info, downloadResult.Output!);
             LoadAllBeatmapsHashes(force: true);
             if (!BeatmapExists(info.BeatmapHash))
             {
-                downloadResult = await DownloadBeatmapsetAsStreamUsingFallbackProvider(info.BeatmapHash);
-                if (!downloadResult.Success)
-                {
-                    await serverConnection.Failure(info.RenderJob.JobId, "beatmapset_download_failed", false);
-                    Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to download a beatmapset!");
-                    Logger.LogError($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
-                    return false;
-                }
-
-                await SaveBeatmapsetStreamAsFile(info, downloadResult.Output!);
-                LoadAllBeatmapsHashes(force: true);
+                await serverConnection.Failure(info.RenderJob.JobId, "beatmapset_download_failed", false);
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset does not contain the requested beatmap!");
+                return false;
             }
 
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Sucessfully downloaded beatmapset! (.osz)");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully downloaded beatmapset! (.osz)");
         }
         else
         {

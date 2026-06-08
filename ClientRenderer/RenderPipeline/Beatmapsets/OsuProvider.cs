@@ -1,6 +1,7 @@
 using ClientRenderer.Helpers;
 using ClientRenderer.Models;
 using OsuApi.BanchoV2;
+using OsuApi.BanchoV2.Clients.Beatmaps.HttpIO;
 using System.Collections.Concurrent;
 
 namespace ClientRenderer.RenderPipeline.Beatmapsets
@@ -22,7 +23,15 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
 
         public override async Task<Result> SetBeatmapsetInfos(string beatmapHash)
         {
-            var lookupBeatmapResponse = await osuApi.Beatmaps.LookupBeatmap(new() { Checksum = beatmapHash });
+            LookupBeatmapResponse lookupBeatmapResponse;
+            try
+            {
+                lookupBeatmapResponse = await osuApi.Beatmaps.LookupBeatmap(new() { Checksum = beatmapHash });
+            }
+            catch (Exception e)
+            {
+                return Result.FromFailure(new NullReferenceException("The requested beatmap was not found"));
+            }
             if (lookupBeatmapResponse?.BeatmapExtended is null)
                 return Result.FromFailure(new NullReferenceException("lookupBeatmapResponse?.BeatmapExtended is null"));
 
