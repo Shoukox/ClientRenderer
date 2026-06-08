@@ -68,10 +68,10 @@ namespace ClientRenderer.GUI.Services
         [SupportedOSPlatform("windows")]
         public bool SignalPrimaryInstance(TimeSpan timeout)
         {
-            using var client = new NamedPipeClientStream(".", _pipeName, PipeDirection.Out, PipeOptions.None);
+            using NamedPipeClientStream client = new NamedPipeClientStream(".", _pipeName, PipeDirection.Out, PipeOptions.None);
             client.Connect((int)Math.Max(1, timeout.TotalMilliseconds));
 
-            using var writer = new StreamWriter(client, Encoding.UTF8, leaveOpen: true);
+            using StreamWriter writer = new StreamWriter(client, Encoding.UTF8, leaveOpen: true);
             writer.WriteLine("SHOW");
             writer.Flush();
             client.WaitForPipeDrain();
@@ -84,7 +84,7 @@ namespace ClientRenderer.GUI.Services
             {
                 try
                 {
-                    using var server = new NamedPipeServerStream(
+                    using NamedPipeServerStream server = new NamedPipeServerStream(
                         _pipeName,
                         PipeDirection.In,
                         1,
@@ -93,7 +93,7 @@ namespace ClientRenderer.GUI.Services
 
                     await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-                    using var reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+                    using StreamReader reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
                     string? command = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
 
                     if (string.Equals(command, "SHOW", StringComparison.Ordinal))

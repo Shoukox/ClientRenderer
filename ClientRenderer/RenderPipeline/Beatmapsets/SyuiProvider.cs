@@ -24,7 +24,7 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
             try
             {
                 string location = BaseUrlSyui + $"api/md5/{beatmapHash}";
-                using var httpRequest = new HttpRequestMessage(HttpMethod.Get, location);
+                using HttpRequestMessage httpRequest = new HttpRequestMessage(HttpMethod.Get, location);
                 BrowserHelper.SimulateBrowser(httpRequest);
                 var httpResponse = await httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
                 httpResponse.EnsureSuccessStatusCode();
@@ -49,7 +49,7 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, BaseUrlSyui + $"d/{beatmapsetId}");
+                using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, BaseUrlSyui + $"d/{beatmapsetId}");
                 BrowserHelper.SimulateBrowser(request);
                 var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();

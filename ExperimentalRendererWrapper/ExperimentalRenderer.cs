@@ -20,7 +20,7 @@ namespace ExperimentalRendererWrapper
             {
                 throw new FileNotFoundException($"Experimental renderer executable was not found at: {ExperimentalRendererPath}");
             }
-            var processStartInfo = new ProcessStartInfo
+            ProcessStartInfo processStartInfo = new ProcessStartInfo
             {
                 FileName = ExperimentalRendererPath,
                 WorkingDirectory = Path.GetDirectoryName(ExperimentalRendererPath),
@@ -37,14 +37,14 @@ namespace ExperimentalRendererWrapper
                 processStartInfo.ArgumentList.Add(arg);
             }
 
-            using var process = new Process { StartInfo = processStartInfo };
+            using Process process = new Process { StartInfo = processStartInfo };
 
-            var outputStringBuilder = new StringBuilder();
-            var errorStringBuilder = new StringBuilder();
+            StringBuilder outputStringBuilder = new StringBuilder();
+            StringBuilder errorStringBuilder = new StringBuilder();
 
             bool audioDecoded = false;
 
-            var progressRegex = new Regex(@"Progress: (\d+).(\d*)%", RegexOptions.Compiled);
+            Regex progressRegex = new Regex(@"Progress: (\d+).(\d*)%", RegexOptions.Compiled);
             void MatchProgress(string line)
             {
                 var matchProgress = progressRegex.Match(line);
@@ -78,8 +78,8 @@ namespace ExperimentalRendererWrapper
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            using var timeoutCts = new CancellationTokenSource(timeoutMs);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
             try
             {

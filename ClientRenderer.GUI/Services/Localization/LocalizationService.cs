@@ -33,7 +33,7 @@ namespace ClientRenderer.GUI.Services.Localization
         public void SetLanguage(string? languageCode)
         {
             var normalizedCode = NormalizeLanguageCode(languageCode);
-            var culture = CultureInfo.GetCultureInfo(normalizedCode);
+            CultureInfo culture = CultureInfo.GetCultureInfo(normalizedCode);
 
             if (Equals(CurrentCulture, culture))
                 return;

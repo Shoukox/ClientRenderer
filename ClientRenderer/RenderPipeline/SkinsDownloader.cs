@@ -25,7 +25,7 @@ namespace ClientRenderer.RenderPipeline
                     Stream skinAsStream = new MemoryStream(await serverConnection.DownloadSkin(skinNameHex));
                     if (info.UseExperimentalRenderer)
                     {
-                        using var fs = new FileStream(oskPath, FileMode.Create, FileAccess.Write);
+                        using FileStream fs = new FileStream(oskPath, FileMode.Create, FileAccess.Write);
                         await skinAsStream.CopyToAsync(fs);
                         skinAsStream.Position = 0;
                     }

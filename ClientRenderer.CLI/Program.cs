@@ -42,7 +42,7 @@ try
     var cmdOptions = cmdParserResult.Value;
     var appConfig = await bootstrapServices.GetRequiredService<IConfigurationLoader>().LoadAsync();
 
-    var cts = new CancellationTokenSource();
+    CancellationTokenSource cts = new CancellationTokenSource();
     var cancellationToken = cts.Token;
 
     ValidateRenderingDependencies(appConfig.OsuApiV2Configuration.ClientId, appConfig.OsuApiV2Configuration.ClientSecret);

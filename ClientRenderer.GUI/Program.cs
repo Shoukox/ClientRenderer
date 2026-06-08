@@ -16,7 +16,7 @@ namespace ClientRenderer.GUI
         public static void Main(string[] args)
         {
             Logger.Configure("ClientRenderer.GUI");
-            using var singleInstance = new SingleInstanceManager(singleInstanceAppId);
+            using SingleInstanceManager singleInstance = new SingleInstanceManager(singleInstanceAppId);
 
             if (!singleInstance.IsPrimaryInstance)
             {

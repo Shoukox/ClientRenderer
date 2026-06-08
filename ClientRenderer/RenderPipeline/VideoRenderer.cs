@@ -105,7 +105,7 @@ namespace ClientRenderer.RenderPipeline
 
                 result = await renderTask;
 
-                var mapNameRegex = new Regex(@"Playing: (.*)", RegexOptions.Compiled);
+                Regex mapNameRegex = new Regex(@"Playing: (.*)", RegexOptions.Compiled);
                 var matchMapName = mapNameRegex.Match(result.Output + "\n" + result.Error);
                 if (matchMapName.Success && !renderUpdates.ContainsKey("Map"))
                 {
@@ -139,7 +139,7 @@ namespace ClientRenderer.RenderPipeline
             ConcurrentDictionary<string, string> renderUpdates = new() { ["BeatmapLength"] = $"{info.BeatmapLength}" };
             try
             {
-                var arguments = new List<string>
+                List<string> arguments = new List<string>
                 {
                     "--yes",
                     "-ex",
@@ -222,7 +222,7 @@ namespace ClientRenderer.RenderPipeline
         public async Task SetVideoDurationInSecondsAsync(RenderPipelineInfo info, CancellationToken cancellationToken, int timeoutMs = 10_000)
         {
             string FfprobePath = Path.Combine(Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath)!, "ffprobe.exe");
-            var psi = new ProcessStartInfo
+            ProcessStartInfo psi = new ProcessStartInfo
             {
                 FileName = FfprobePath,
                 RedirectStandardOutput = true,
@@ -245,8 +245,8 @@ namespace ClientRenderer.RenderPipeline
             string output = await process.StandardOutput.ReadToEndAsync();
             string error = await process.StandardError.ReadToEndAsync();
 
-            using var timeoutCts = new CancellationTokenSource(timeoutMs);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             try
             {
                 await process.WaitForExitAsync(linkedCts.Token);
@@ -257,7 +257,7 @@ namespace ClientRenderer.RenderPipeline
                     return;
                 }
 
-                using var doc = JsonDocument.Parse(output);
+                using JsonDocument doc = JsonDocument.Parse(output);
                 string durationString = doc.RootElement
                     .GetProperty("format")
                     .GetProperty("duration")

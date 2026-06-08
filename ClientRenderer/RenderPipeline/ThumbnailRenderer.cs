@@ -14,7 +14,7 @@ namespace ClientRenderer.RenderPipeline
         {
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Generating a thumbnail...");
             string thumbnailPath = Path.Combine(DanserGo.ScreenshotsPath, $"{info.BeatmapHash}.jpg");
-            var processStartInfo = new ProcessStartInfo
+            ProcessStartInfo processStartInfo = new ProcessStartInfo
             {
                 FileName = FfmpegPath,
                 ArgumentList = { "-y", "-sseof", "-1", "-i", info.VideoPath, "-frames:v", "1", "-vf", "scale='min(1280,iw)':-2", "-q:v", "15", thumbnailPath },
@@ -24,10 +24,10 @@ namespace ClientRenderer.RenderPipeline
                 CreateNoWindow = true,
             };
 
-            using var process = new Process { StartInfo = processStartInfo };
+            using Process process = new Process { StartInfo = processStartInfo };
             process.Start();
-            using var timeoutCts = new CancellationTokenSource(timeoutMs);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
             try
             {

@@ -12,7 +12,7 @@ public static class ProcessExtensions
     /// <returns></returns>
     public static async Task<bool> WaitForExitAsync(this Process process, TimeSpan timeout)
     {
-        using var cts = new CancellationTokenSource(timeout);
+        using CancellationTokenSource cts = new CancellationTokenSource(timeout);
         try
         {
             await process.WaitForExitAsync(cts.Token);

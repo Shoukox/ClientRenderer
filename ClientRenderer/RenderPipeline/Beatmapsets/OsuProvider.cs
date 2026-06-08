@@ -49,7 +49,7 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, BaseUrlOsu + $"beatmapsets/{beatmapsetId}/download");
+                using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, BaseUrlOsu + $"beatmapsets/{beatmapsetId}/download");
                 BrowserHelper.SimulateBrowser(request);
                 request.Headers.Add("Cookie", $"osu_session={osuSessionCookie}");
                 request.Headers.Referrer = new Uri(BaseUrlOsu + $"{beatmapsetId}");

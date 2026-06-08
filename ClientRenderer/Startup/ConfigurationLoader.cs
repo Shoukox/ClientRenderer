@@ -53,8 +53,8 @@ public sealed class ConfigurationLoader : IConfigurationLoader
         }
 
         Logger.Log("Checking your osu_session cookie...");
-        using var httpClient = new HttpClient();
-        using var request = new HttpRequestMessage(HttpMethod.Head, "https://osu.ppy.sh/beatmapsets/41823/download");
+        using HttpClient httpClient = new HttpClient();
+        using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, "https://osu.ppy.sh/beatmapsets/41823/download");
         request.Headers.Add("Cookie", $"osu_session={osuSessionCookie}");
         request.Headers.Referrer = new Uri("https://osu.ppy.sh/beatmapsets/41823/download");
         var response = await httpClient.SendAsync(request);

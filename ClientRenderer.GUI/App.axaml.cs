@@ -101,7 +101,7 @@ namespace ClientRenderer.GUI
             _trayExitMenuItem = new NativeMenuItem();
             _trayExitMenuItem.Click += Tray_Exit_OnClick;
 
-            var menu = new NativeMenu();
+            NativeMenu menu = new NativeMenu();
             menu.Add(_trayShowMenuItem);
             menu.Add(new NativeMenuItemSeparator());
             menu.Add(_trayExitMenuItem);

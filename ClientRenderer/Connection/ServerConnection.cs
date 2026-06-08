@@ -271,11 +271,11 @@ namespace ClientRenderer.Connection
         {
             const int maxRetriesPerChunk = 5;
 
-            var fileInfo = new FileInfo(videoPath);
+            FileInfo fileInfo = new FileInfo(videoPath);
             long fileSize = fileInfo.Length;
             int totalChunks = (int)Math.Ceiling((double)fileSize / chunkSizeBytes);
 
-            await using var fileStream = new FileStream(videoPath, FileMode.Open, FileAccess.Read);
+            await using FileStream fileStream = new FileStream(videoPath, FileMode.Open, FileAccess.Read);
 
             for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
             {
@@ -293,12 +293,12 @@ namespace ClientRenderer.Connection
                         fileStream.Seek(offset, SeekOrigin.Begin);
                         int read = await fileStream.ReadAsync(buffer, 0, currentChunkSize, _cancellationToken);
 
-                        using var multipart = new MultipartFormDataContent
+                        using MultipartFormDataContent multipart = new MultipartFormDataContent
                         {
                             { new ByteArrayContent(buffer, 0, read), "file", $"video.part{chunkIndex}.mp4" }
                         };
 
-                        using var hrm = new HttpRequestMessage();
+                        using HttpRequestMessage hrm = new HttpRequestMessage();
                         hrm.Content = multipart;
                         hrm.Method = HttpMethod.Post;
                         hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/upload-replay-videofile?job-id={jobId}&chunk-index={chunkIndex}&total-chunks={totalChunks}");
@@ -327,10 +327,10 @@ namespace ClientRenderer.Connection
 
         public async Task UploadThumbnail(string thumbnailPath, int jobId)
         {
-            using var hrm = new HttpRequestMessage();
+            using HttpRequestMessage hrm = new HttpRequestMessage();
 
-            await using var fileStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read);
-            using var multipart = new MultipartFormDataContent
+            await using FileStream fileStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read);
+            using MultipartFormDataContent multipart = new MultipartFormDataContent
             {
                 { new StreamContent(fileStream), "file", $"thumbnail.jpg" }
             };

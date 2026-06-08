@@ -125,7 +125,7 @@ namespace ClientRenderer.GUI.Services
 
                 Logger.Log($"{encoder} has been set as a default danser encoder.");
 
-                var serverConnection = new ServerConnection(serverUrl, appConfig.RendererCredentials, cancellationToken);
+                ServerConnection serverConnection = new ServerConnection(serverUrl, appConfig.RendererCredentials, cancellationToken);
                 serverConnection.HeartbeatStatusChanged += OnHeartbeatStatusChanged;
 
                 lock (_sync)

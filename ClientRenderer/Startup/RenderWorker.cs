@@ -68,7 +68,7 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                     ChosenRenderingEncoder = chosenEncoder
                 };
 
-                using var renderCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                using CancellationTokenSource renderCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 var renderCancellationMonitor = MonitorRenderCancellationAsync(renderJob.JobId, serverConnection, renderCancellationTokenSource);
 
                 RenderingStatus?.Invoke(true);

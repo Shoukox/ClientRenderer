@@ -22,7 +22,7 @@ public static class DanserGo
         }
         CreateDirectoriesIfNeeded();
 
-        var processStartInfo = new ProcessStartInfo
+        ProcessStartInfo processStartInfo = new ProcessStartInfo
         {
             FileName = DanserGoPath,
             UseShellExecute = false,
@@ -39,12 +39,12 @@ public static class DanserGo
             processStartInfo.ArgumentList.Add(arg);
         }
 
-        using var process = new Process { StartInfo = processStartInfo };
+        using Process process = new Process { StartInfo = processStartInfo };
 
-        var outputStringBuilder = new StringBuilder();
-        var errorStringBuilder = new StringBuilder();
+        StringBuilder outputStringBuilder = new StringBuilder();
+        StringBuilder errorStringBuilder = new StringBuilder();
 
-        var progressRegex = new Regex(@"Progress: (\d+)%", RegexOptions.Compiled);
+        Regex progressRegex = new Regex(@"Progress: (\d+)%", RegexOptions.Compiled);
         process.OutputDataReceived += (_, e) =>
         {
             if (string.IsNullOrWhiteSpace(e.Data))
@@ -70,8 +70,8 @@ public static class DanserGo
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        using var timeoutCts = new CancellationTokenSource(timeoutMs);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+        using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
+        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         try
         {

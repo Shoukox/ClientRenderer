@@ -12,7 +12,7 @@ public sealed class UpdateService : IUpdateService
         Logger.Log("Searching for updates...");
         try
         {
-            var mgr = new UpdateManager(
+            UpdateManager mgr = new UpdateManager(
                 new GithubSource(
                     repoUrl: "https://github.com/Shoukox/ClientRenderer",
                     accessToken: null,

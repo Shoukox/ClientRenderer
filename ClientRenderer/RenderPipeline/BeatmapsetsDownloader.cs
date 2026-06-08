@@ -119,7 +119,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
     {
         using (var oszStream = beatmapsetStream)
         {
-            var oszStreamCopy = new MemoryStream();
+            MemoryStream oszStreamCopy = new MemoryStream();
 
             await oszStream.CopyToAsync(oszStreamCopy);
             oszStreamCopy.Position = 0;
@@ -135,7 +135,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             {
                 if (info.UseExperimentalRenderer)
                 {
-                    using var fs = new FileStream(tempBeatmapsetOszPath, FileMode.CreateNew, FileAccess.Write);
+                    using FileStream fs = new FileStream(tempBeatmapsetOszPath, FileMode.CreateNew, FileAccess.Write);
                     await oszStreamCopy.CopyToAsync(fs);
                     oszStreamCopy.Position = 0;
                 }

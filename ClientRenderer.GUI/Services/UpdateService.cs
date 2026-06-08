@@ -45,7 +45,7 @@ namespace ClientRenderer.GUI.Services
             {
                 Logger.Log(_localizer["Updates.Checking"]);
 
-                var manager = new UpdateManager(
+                UpdateManager manager = new UpdateManager(
                     new GithubSource(
                         repoUrl: "https://github.com/Shoukox/ClientRenderer",
                         accessToken: null,

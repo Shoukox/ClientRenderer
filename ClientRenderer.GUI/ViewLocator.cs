@@ -20,7 +20,7 @@ namespace ClientRenderer.GUI
                 return null;
 
             var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
-            var type = Type.GetType(name);
+            Type? type = Type.GetType(name);
 
             if (type != null)
             {
