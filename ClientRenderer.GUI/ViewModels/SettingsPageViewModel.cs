@@ -2,6 +2,7 @@ using Avalonia.Media;
 using ClientRenderer.GUI.Configuration;
 using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.Services.Localization;
+using ClientRenderer.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.Generic;
 using System.Linq;
@@ -64,6 +65,7 @@ namespace ClientRenderer.GUI.ViewModels
 
             if (!StartupSettingSupported)
             {
+                Logger.LogWarning("Run on system startup is not supported on this platform.");
                 StartupSettingStatus = _localizer["Settings.RunOnStartup.Unsupported"];
                 StartupSettingStatusColor = ErrorColor;
                 return;
@@ -73,6 +75,7 @@ namespace ClientRenderer.GUI.ViewModels
             if (actualState != RunOnSystemStartup)
             {
                 _isApplyingStartupSetting = true;
+                Logger.Log($"Synchronizing run on system startup setting. Desired: {RunOnSystemStartup}, actual: {actualState}.");
                 _startupLaunchService.SetEnabled(RunOnSystemStartup);
                 _isApplyingStartupSetting = false;
             }
@@ -103,10 +106,12 @@ namespace ClientRenderer.GUI.ViewModels
             {
                 _isApplyingStartupSetting = true;
                 _startupLaunchService.SetEnabled(value);
+                Logger.Log($"Run on system startup was {(value ? "enabled" : "disabled")}.");
                 UpdateStartupStatus(value);
             }
             catch (System.Exception ex)
             {
+                Logger.LogError(ex, $"Failed to {(value ? "enable" : "disable")} run on system startup.");
                 _settingsProvider.Update(settings => settings.RunOnSystemStartup = !value);
                 RunOnSystemStartup = !value;
                 StartupSettingStatus = string.Format(_localizer["Settings.RunOnStartup.Failed"], ex.Message);

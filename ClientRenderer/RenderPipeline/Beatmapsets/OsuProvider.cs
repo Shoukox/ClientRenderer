@@ -1,4 +1,5 @@
 using ClientRenderer.Helpers;
+using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using OsuApi.BanchoV2;
 using OsuApi.BanchoV2.Clients.Beatmaps.HttpIO;
@@ -16,7 +17,10 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
             await SetBeatmapsetInfos(beatmapHash);
 
             if (!HashToValues.TryGetValue(beatmapHash, out var result))
+            {
+                Logger.LogWarning($"OsuProvider could not find beatmap info for hash: {beatmapHash}");
                 return Result<Stream>.FromFailure(new KeyNotFoundException(beatmapHash));
+            }
 
             return await DownloadBeatmapset(result.BeatmapsetId);
         }
@@ -30,10 +34,14 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
             }
             catch (Exception e)
             {
-                return Result.FromFailure(new NullReferenceException("The requested beatmap was not found"));
+                Logger.LogError(e, $"OsuProvider failed to look up beatmap hash: {beatmapHash}");
+                return Result.FromFailure(new NullReferenceException("The requested beatmap was not found", e));
             }
             if (lookupBeatmapResponse?.BeatmapExtended is null)
+            {
+                Logger.LogWarning($"OsuProvider lookup response did not contain beatmap details for hash: {beatmapHash}");
                 return Result.FromFailure(new NullReferenceException("lookupBeatmapResponse?.BeatmapExtended is null"));
+            }
 
             int beatmapsetId = lookupBeatmapResponse.BeatmapExtended.BeatmapsetId!.Value;
             int totalLength = lookupBeatmapResponse.BeatmapExtended.TotalLength ?? 0;
@@ -55,10 +63,12 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
                 request.Headers.Referrer = new Uri(BaseUrlOsu + $"{beatmapsetId}");
                 var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
+                Logger.Log($"OsuProvider downloaded beatmapset {beatmapsetId}.");
                 return Result<Stream>.FromSuccess(await response.Content.ReadAsStreamAsync());
             }
             catch (Exception e)
             {
+                Logger.LogError(e, $"OsuProvider failed to download beatmapset {beatmapsetId}.");
                 return Result<Stream>.FromFailure(e);
             }
         }

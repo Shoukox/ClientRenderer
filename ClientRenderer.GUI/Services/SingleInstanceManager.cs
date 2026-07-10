@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using ClientRenderer.Logging;
 using System;
 using System.IO;
 using System.IO.Pipes;
@@ -32,6 +33,7 @@ namespace ClientRenderer.GUI.Services
             _pipeName = instanceKey;
             _mutex = new Mutex(true, _mutexName, out bool createdNew);
             IsPrimaryInstance = createdNew;
+            Logger.Log($"Single-instance manager initialized. Primary instance: {IsPrimaryInstance}.");
         }
 
         public bool IsPrimaryInstance { get; }
@@ -46,6 +48,8 @@ namespace ClientRenderer.GUI.Services
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 _listenerTask ??= Task.Run(() => listenLoopAsync(_shutdown.Token));
             }
+
+            Logger.Log("Single-instance activation listener started.");
         }
 
         public void RegisterActivationHandler(Action handler)
@@ -62,7 +66,10 @@ namespace ClientRenderer.GUI.Services
             }
 
             if (invokeImmediately)
+            {
+                Logger.Log("Dispatching pending activation request.");
                 dispatchActivation(handler);
+            }
         }
 
         [SupportedOSPlatform("windows")]
@@ -97,14 +104,22 @@ namespace ClientRenderer.GUI.Services
                     string? command = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
 
                     if (string.Equals(command, "SHOW", StringComparison.Ordinal))
+                    {
+                        Logger.Log("Received activation request from another instance.");
                         requestActivation();
+                    }
+                    else
+                    {
+                        Logger.LogWarning($"Received unknown activation command: {command ?? "<empty>"}");
+                    }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    Logger.LogError(ex, "Single-instance activation listener failed. Retrying...");
                     await Task.Delay(250, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -119,6 +134,7 @@ namespace ClientRenderer.GUI.Services
                 if (handler == null)
                 {
                     _hasPendingActivation = true;
+                    Logger.Log("Activation request queued until the handler is registered.");
                     return;
                 }
             }
@@ -154,9 +170,9 @@ namespace ClientRenderer.GUI.Services
             {
                 _listenerTask?.Wait(TimeSpan.FromSeconds(2));
             }
-            catch
+            catch (Exception ex)
             {
-                // Best-effort shutdown.
+                Logger.LogWarning($"Single-instance listener did not stop cleanly: {ex.Message}");
             }
 
             _shutdown.Dispose();

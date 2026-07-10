@@ -1,4 +1,5 @@
 using ClientRenderer.Helpers;
+using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
@@ -14,7 +15,10 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
             await SetBeatmapsetInfos(beatmapHash);
 
             if (!HashToValues.TryGetValue(beatmapHash, out var result))
+            {
+                Logger.LogWarning($"MinoProvider could not find beatmap info for hash: {beatmapHash}");
                 return Result<Stream>.FromFailure(new KeyNotFoundException(beatmapHash));
+            }
 
             return await DownloadBeatmapset(result.BeatmapsetId);
         }
@@ -38,10 +42,12 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
                     new BeatmapsetInfo { TotalLength = totalLength, BeatmapsetId = beatmapsetId },
                     (_, b) => { b.TotalLength = totalLength; b.BeatmapsetId = beatmapsetId; return b; });
 
+                Logger.Log($"MinoProvider found beatmapset {beatmapsetId} for hash: {beatmapHash}");
                 return Result.FromSuccess();
             }
             catch (Exception ex)
             {
+                Logger.LogError(ex, $"MinoProvider failed to look up beatmap hash: {beatmapHash}");
                 return Result.FromFailure(ex);
             }
         }
@@ -54,10 +60,12 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
                 BrowserHelper.SimulateBrowser(request);
                 var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
+                Logger.Log($"MinoProvider downloaded beatmapset {beatmapsetId}.");
                 return Result<Stream>.FromSuccess(await response.Content.ReadAsStreamAsync());
             }
             catch (Exception e)
             {
+                Logger.LogError(e, $"MinoProvider failed to download beatmapset {beatmapsetId}.");
                 return Result<Stream>.FromFailure(e);
             }
         }

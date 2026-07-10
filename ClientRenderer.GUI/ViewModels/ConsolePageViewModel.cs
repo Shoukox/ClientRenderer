@@ -12,6 +12,7 @@ using System.ComponentModel;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Input.Platform;
 
 namespace ClientRenderer.GUI.ViewModels
 {

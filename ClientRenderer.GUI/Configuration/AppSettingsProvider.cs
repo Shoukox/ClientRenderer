@@ -1,3 +1,4 @@
+using ClientRenderer.Logging;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -27,6 +28,7 @@ namespace ClientRenderer.GUI.Configuration
 
             if (!File.Exists(FilePath))
             {
+                Logger.Log($"Settings file was not found. Creating default settings at: {FilePath}");
                 Current = new Settings();
                 Save();
                 return Current;
@@ -37,8 +39,9 @@ namespace ClientRenderer.GUI.Configuration
                 var json = File.ReadAllText(FilePath);
                 Current = JsonSerializer.Deserialize<Settings>(json, SerializerOptions) ?? new Settings();
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
+                Logger.LogError(ex, $"Settings file is invalid. Backing it up and recreating defaults: {FilePath}");
                 BackupCorruptedFile();
                 Current = new Settings();
                 Save();
@@ -62,6 +65,7 @@ namespace ClientRenderer.GUI.Configuration
             }
 
             File.Move(tempFilePath, FilePath);
+            Logger.Log($"Settings saved to: {FilePath}");
         }
 
         public void Update(Action<Settings> updateAction)
@@ -79,6 +83,7 @@ namespace ClientRenderer.GUI.Configuration
                 $"settings.corrupted.{DateTime.UtcNow:yyyyMMddHHmmss}.json");
 
             File.Copy(FilePath, backupFilePath, overwrite: false);
+            Logger.LogWarning($"Corrupted settings file was backed up to: {backupFilePath}");
         }
     }
 }

@@ -17,12 +17,14 @@ public sealed class ConfigurationLoader : IConfigurationLoader
         string legacySettingsDirectory = Path.Combine(AppContext.BaseDirectory, SettingsDirectoryName);
         string settingsDirectory = GetSettingsDirectory();
         Directory.CreateDirectory(settingsDirectory);
+        Logger.Log($"Using renderer settings directory: {settingsDirectory}");
         MigrateLegacySettingsDirectory(legacySettingsDirectory, settingsDirectory);
 
         string cookieFile = Path.Combine(settingsDirectory, "cookie.txt");
         if (!File.Exists(cookieFile))
         {
             await File.WriteAllTextAsync(cookieFile, "INSERT YOUR OSU-SESSION COOKIE HERE");
+            Logger.LogWarning($"Created missing osu_session cookie file: {cookieFile}");
             throw new InvalidOperationException($"Specify your osu_session cookie at {cookieFile}");
         }
 
@@ -76,6 +78,7 @@ public sealed class ConfigurationLoader : IConfigurationLoader
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
             File.Copy(sourceFile, destinationFile);
+            Logger.Log($"Migrated legacy settings file to: {destinationFile}");
         }
     }
 
@@ -83,6 +86,7 @@ public sealed class ConfigurationLoader : IConfigurationLoader
     {
         if (string.IsNullOrWhiteSpace(osuSessionCookie) || osuSessionCookie.Contains("INSERT YOUR OSU-SESSION COOKIE HERE", StringComparison.OrdinalIgnoreCase))
         {
+            Logger.LogError("osu_session cookie is empty or still contains the placeholder value.");
             throw new InvalidOperationException("osu_session cookie is empty or placeholder.");
         }
 
@@ -94,6 +98,7 @@ public sealed class ConfigurationLoader : IConfigurationLoader
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
+            Logger.LogError($"osu_session validation failed with {(int)response.StatusCode} {response.StatusCode}.");
             throw new InvalidOperationException("Invalid/expired osu_session cookie. Re-login on osu website and update settings/cookie.txt.");
         }
 
@@ -105,11 +110,19 @@ public sealed class ConfigurationLoader : IConfigurationLoader
         if (!File.Exists(path))
         {
             await File.WriteAllTextAsync(path, JsonSerializer.Serialize(defaultModel, JsonOptions));
+            Logger.LogWarning($"Created missing configuration file: {path}");
             throw new InvalidOperationException($"{setupMessage} at {path}");
         }
 
         var json = await File.ReadAllTextAsync(path);
         var model = JsonSerializer.Deserialize<T>(json);
-        return model ?? throw new InvalidOperationException($"Failed to parse config file: {path}");
+        if (model is null)
+        {
+            Logger.LogError($"Failed to parse configuration file: {path}");
+            throw new InvalidOperationException($"Failed to parse config file: {path}");
+        }
+
+        Logger.Log($"Loaded configuration file: {path}");
+        return model;
     }
 }

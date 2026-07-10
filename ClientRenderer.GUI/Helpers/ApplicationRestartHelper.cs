@@ -16,6 +16,7 @@ public static class ApplicationRestartHelper
             if (string.IsNullOrWhiteSpace(currentExecutable))
                 throw new InvalidOperationException("Could not resolve current executable path.");
 
+            Logger.Log($"Restarting application from: {currentExecutable}");
             App.SingleInstance?.Dispose();
 
             ProcessStartInfo startInfo = new(currentExecutable)
@@ -27,6 +28,7 @@ public static class ApplicationRestartHelper
                 startInfo.ArgumentList.Add(argument);
 
             Process.Start(startInfo);
+            Logger.Log("Replacement application process started.");
 
             switch (Application.Current?.ApplicationLifetime)
             {
@@ -43,7 +45,7 @@ public static class ApplicationRestartHelper
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex.ToString());
+            Logger.LogError(ex, "Failed to restart application.");
         }
     }
 }

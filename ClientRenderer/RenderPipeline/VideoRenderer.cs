@@ -38,7 +38,7 @@ namespace ClientRenderer.RenderPipeline
                 DanserGo.AdjustConfig(info.RenderJob.RenderSettings.ToDanserConfiguration(info.HashedSkinName));
             }
 
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Start rendering");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Starting rendering.");
 
             info.VideoPath = Path.Combine(DanserGo.VideosPath, $"{info.BeatmapHash}.mp4");
             var renderSuccess = !info.UseExperimentalRenderer
@@ -48,11 +48,11 @@ namespace ClientRenderer.RenderPipeline
             if (!renderSuccess)
                 return false;
 
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering done!");
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Uploading to the server...!");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering completed.");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Uploading video to the server...");
             await serverConnection.PostVideo(info.VideoPath, info.RenderJob.JobId);
 
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully uploaded");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Video uploaded successfully.");
             await thumbnailRenderer.RenderThumbnail(info, serverConnection, cancellationToken);
             await SetVideoDurationInSecondsAsync(info, cancellationToken);
             try
@@ -61,12 +61,11 @@ namespace ClientRenderer.RenderPipeline
             }
             catch (Exception ex)
             {
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to set render job metadata! Skipping...");
-                Logger.LogError(ex.ToString());
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to set render job metadata. Skipping metadata update.");
             }
 
             await serverConnection.FinishRendering(info.RenderJob.JobId);
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering finished");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering finished.");
 
             return true;
         }
@@ -86,10 +85,11 @@ namespace ClientRenderer.RenderPipeline
                     Path.GetFileNameWithoutExtension(info.VideoPath),
                     "-preciseprogress"
                 ];
-                if(info.RenderJob.RenderSettings.SkipIntro)
+                if (info.RenderJob.RenderSettings.SkipIntro)
                 {
                     arguments.Add("-skip");
                 }
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] danser-go args: {string.Join(' ', arguments)}");
                 Task<DanserResult> renderTask = DanserGo.ExecuteAsync(arguments, renderUpdates, cancellationToken: cancellationToken);
 
                 while (!renderTask.IsCompleted && !cancellationToken.IsCancellationRequested)
@@ -115,18 +115,19 @@ namespace ClientRenderer.RenderPipeline
             catch (Exception ex)
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "danser", false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render a replay! Error when calling danser-go");
-                Logger.LogError(ex.ToString());
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to render replay with danser-go.");
                 return false;
             }
 
             if (!result.Success)
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "danser", false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render a replay! Saving danser logs");
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] danser-go failed with exit code {result.ExitCode}. Saving renderer logs.");
                 Directory.CreateDirectory("logs");
-                File.WriteAllText(Path.Combine("logs", $"danser_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log"),
+                string logPath = Path.Combine("logs", $"danser_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log");
+                File.WriteAllText(logPath,
                     "Danser Standard Output:\n" + result.Output + "\n\n\nDanser Error Output:\n" + result.Error);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] danser-go log saved to: {logPath}");
                 return false;
             }
 
@@ -183,8 +184,9 @@ namespace ClientRenderer.RenderPipeline
                             await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, Math.Min(1.0, progress));
                             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendering progress: {progress * 100:0.00}%");
                         }
-                        catch
+                        catch (Exception ex)
                         {
+                            Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to report experimental renderer progress. Continuing render.");
                             continue;
                         }
                     }
@@ -195,24 +197,25 @@ namespace ClientRenderer.RenderPipeline
             }
             catch (OperationCanceledException)
             {
-                Logger.LogWarning($"[JobId:{info.RenderJob!.JobId}] Experimental renderer was cancelled.");
+                Logger.LogWarning($"[JobId:{info.RenderJob!.JobId}] Experimental renderer was canceled.");
                 throw;
             }
             catch (Exception ex)
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "Failed to render a replay using experimental renderer", false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render replay! Error when calling experimental renderer");
-                Logger.LogError(ex.ToString());
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to render replay with experimental renderer.");
                 return false;
             }
 
             if (!result.Success)
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "Failed to render a replay using experimental renderer. Result is not successful", false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render replay! Saving danser logs");
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Experimental renderer failed with exit code {result.ExitCode}. Saving renderer logs.");
                 Directory.CreateDirectory("logs");
-                File.WriteAllText(Path.Combine("logs", $"experimental-renderer_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log"),
+                string logPath = Path.Combine("logs", $"experimental-renderer_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log");
+                File.WriteAllText(logPath,
                     "Experimental Renderer Standard Output:\n" + result.Output + "\n\n\nExperimental Renderer Error Output:\n" + result.Error);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Experimental renderer log saved to: {logPath}");
                 return false;
             }
 
@@ -221,10 +224,10 @@ namespace ClientRenderer.RenderPipeline
 
         public async Task SetVideoDurationInSecondsAsync(RenderPipelineInfo info, CancellationToken cancellationToken, int timeoutMs = 10_000)
         {
-            string FfprobePath = Path.Combine(Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath)!, "ffprobe.exe");
+            string ffprobePath = Path.Combine(Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath)!, "ffprobe.exe");
             ProcessStartInfo psi = new ProcessStartInfo
             {
-                FileName = FfprobePath,
+                FileName = ffprobePath,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -253,7 +256,7 @@ namespace ClientRenderer.RenderPipeline
 
                 if (process.ExitCode != 0)
                 {
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Failed to calculate a video duration! Skipping...");
+                    Logger.LogError($"[JobId:{info.RenderJob!.JobId}] ffprobe exited with code {process.ExitCode}. Skipping video duration update. Error: {error}");
                     return;
                 }
 
@@ -273,7 +276,7 @@ namespace ClientRenderer.RenderPipeline
                 if (!process.HasExited)
                     process.Kill(true);
 
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to calculate a video duration. Cancelled.");
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to calculate video duration. Operation was canceled.");
                 throw;
             }
             catch (Exception ex)
@@ -281,8 +284,7 @@ namespace ClientRenderer.RenderPipeline
                 if (!process.HasExited)
                     process.Kill(true);
 
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to calculate a video duration! Skipping...");
-                Logger.LogError(ex.ToString());
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to calculate video duration. Skipping duration update.");
                 return;
             }
         }

@@ -12,42 +12,53 @@ namespace ClientRenderer.RenderPipeline
     {
         public async Task<bool> DownloadSkin(RenderPipelineInfo info, IServerConnection serverConnection)
         {
-            string skinNameNoOsk = ToStableHash(info.RenderJob.RenderSettings.SkinName[..^4]);
-            string oskPath = Path.Combine(AppContext.BaseDirectory, skinNameNoOsk);
-            info.RenderJob.RenderSettings.Encoder = info.ChosenRenderingEncoder;
-            if (info.RenderJob.RenderSettings.SkinName.EndsWith(".osk"))
+            try
             {
-                string skinDirectory = Path.Combine(DanserGo.DanserGoDirectoryPath, "skins", skinNameNoOsk);
-                if (!Directory.Exists(skinDirectory))
+                string skinNameNoOsk = ToStableHash(info.RenderJob.RenderSettings.SkinName[..^4]);
+                string oskPath = Path.Combine(AppContext.BaseDirectory, skinNameNoOsk);
+                info.RenderJob.RenderSettings.Encoder = info.ChosenRenderingEncoder;
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Using renderer encoder: {info.ChosenRenderingEncoder}");
+                if (info.RenderJob.RenderSettings.SkinName.EndsWith(".osk"))
                 {
-                    string skinNameHex = Convert.ToHexString(Encoding.ASCII.GetBytes(info.RenderJob.RenderSettings.SkinName)) + ".osk";
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Skin: {info.RenderJob.RenderSettings.SkinName}. Downloading a skin...");
-                    Stream skinAsStream = new MemoryStream(await serverConnection.DownloadSkin(skinNameHex));
-                    if (info.UseExperimentalRenderer)
+                    string skinDirectory = Path.Combine(DanserGo.DanserGoDirectoryPath, "skins", skinNameNoOsk);
+                    if (!Directory.Exists(skinDirectory))
                     {
-                        using FileStream fs = new FileStream(oskPath, FileMode.Create, FileAccess.Write);
-                        await skinAsStream.CopyToAsync(fs);
-                        skinAsStream.Position = 0;
-                    }
-                    ZipFile.ExtractToDirectory(skinAsStream, skinDirectory);
-                }
-                else
-                {
-                    if (info.UseExperimentalRenderer)
-                    {
-                        if (File.Exists(oskPath))
+                        string skinNameHex = Convert.ToHexString(Encoding.ASCII.GetBytes(info.RenderJob.RenderSettings.SkinName)) + ".osk";
+                        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Skin: {info.RenderJob.RenderSettings.SkinName}. Downloading skin...");
+                        Stream skinAsStream = new MemoryStream(await serverConnection.DownloadSkin(skinNameHex));
+                        if (info.UseExperimentalRenderer)
                         {
-                            File.Delete(oskPath);
+                            using FileStream fs = new FileStream(oskPath, FileMode.Create, FileAccess.Write);
+                            await skinAsStream.CopyToAsync(fs);
+                            skinAsStream.Position = 0;
                         }
-                        ZipFile.CreateFromDirectory(skinDirectory, oskPath);
+                        ZipFile.ExtractToDirectory(skinAsStream, skinDirectory);
+                        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Skin extracted to: {skinDirectory}");
                     }
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Skin: {info.RenderJob.RenderSettings.SkinName}. Already exists.");
+                    else
+                    {
+                        if (info.UseExperimentalRenderer)
+                        {
+                            if (File.Exists(oskPath))
+                            {
+                                File.Delete(oskPath);
+                            }
+                            ZipFile.CreateFromDirectory(skinDirectory, oskPath);
+                            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Skin archive prepared for experimental renderer: {oskPath}");
+                        }
+                        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Skin already exists locally: {info.RenderJob.RenderSettings.SkinName}");
+                    }
+                    info.HashedSkinName = skinNameNoOsk;
                 }
-                info.HashedSkinName = skinNameNoOsk;
-            }
 
-            info.SkinOskPath = oskPath;
-            return true;
+                info.SkinOskPath = oskPath;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to prepare skin: {info.RenderJob.RenderSettings.SkinName}");
+                throw;
+            }
         }
 
         private static string ToStableHash(string value)

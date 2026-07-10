@@ -27,7 +27,10 @@ public sealed class VelopackAutomaticUpdateService : IAutomaticUpdateService
 
             var updateInfo = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
             if (updateInfo == null)
+            {
+                Logger.Log("No updates available.");
                 return false;
+            }
 
             Logger.Log($"Found new update: {updateInfo.TargetFullRelease.Version}");
             await manager.DownloadUpdatesAsync(updateInfo, cancelToken: cancellationToken).ConfigureAwait(false);
@@ -38,11 +41,12 @@ public sealed class VelopackAutomaticUpdateService : IAutomaticUpdateService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            Logger.LogWarning("Update check was canceled.");
             return false;
         }
         catch (Exception ex)
         {
-            Logger.LogError($"Failed to check for updates: {ex.Message}");
+            Logger.LogError(ex, "Failed to check for updates.");
             return false;
         }
     }

@@ -15,18 +15,29 @@ public class ReplaysDownloader : IReplaysDownloader
 
     public async Task<bool> DownloadReplay(RenderPipelineInfo info, IServerConnection serverConnection)
     {
-        await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, -2);
-        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading a replay...");
-        info.ReplayAsBytes = await serverConnection.DownloadReplay(info.RenderJob!.JobId);
-        info.DecodedReplay = DecodeReplay(info.ReplayAsBytes);
-        info.RenderJob.PlayerName = info.DecodedReplay.PlayerName;
-        if (info.DecodedReplay.Ruleset != OsuParsers.Enums.Ruleset.Standard)
+        try
         {
-            info.UseExperimentalRenderer = true;
+            await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, -2);
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading replay...");
+            info.ReplayAsBytes = await serverConnection.DownloadReplay(info.RenderJob!.JobId);
+            info.DecodedReplay = DecodeReplay(info.ReplayAsBytes);
+            info.RenderJob.PlayerName = info.DecodedReplay.PlayerName;
+            if (info.DecodedReplay.Ruleset != OsuParsers.Enums.Ruleset.Standard)
+            {
+                info.UseExperimentalRenderer = true;
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Replay uses {info.DecodedReplay.Ruleset}; switching to experimental renderer.");
+            }
+
+            info.BeatmapHash = info.DecodedReplay.BeatmapMD5Hash;
+            info.ReplayPath = Path.Combine(AppContext.BaseDirectory, $"{info.BeatmapHash}{info.FileTimeNow}.osr");
+            await File.WriteAllBytesAsync(info.ReplayPath, info.ReplayAsBytes);
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Replay saved to: {info.ReplayPath}");
         }
-        info.BeatmapHash = info.DecodedReplay.BeatmapMD5Hash;
-        info.ReplayPath = Path.Combine(AppContext.BaseDirectory, $"{info.BeatmapHash}{info.FileTimeNow}.osr");
-        await File.WriteAllBytesAsync(info.ReplayPath, info.ReplayAsBytes);
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to download or decode replay.");
+            throw;
+        }
 
         return true;
     }

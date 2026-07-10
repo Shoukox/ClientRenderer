@@ -48,7 +48,7 @@ try
     ValidateRenderingDependencies(appConfig.OsuApiV2Configuration.ClientId, appConfig.OsuApiV2Configuration.ClientSecret);
 
     string chosenEncoder = cmdOptions.Encoder;
-    Logger.Log($"{chosenEncoder} has been set as a default danser encoder.");
+    Logger.Log($"{chosenEncoder} has been set as the default danser encoder.");
 
     await using var runtimeServices = new ServiceCollection()
         .AddSingleton(appConfig)
@@ -72,16 +72,16 @@ try
     var serverConnection = runtimeServices.GetRequiredService<IServerConnection>();
     while (!await serverConnection.InitializeToken() && !cancellationToken.IsCancellationRequested)
     {
-        Logger.LogError("Failed to initialize a token, retrying in 5 seconds... Check your renderer-settings.json (or internet connection)");
+        Logger.LogWarning("Failed to initialize access token. Retrying in 5 seconds. Check renderer-settings.json and the internet connection.");
         await Task.Delay(5000, cancellationToken);
     }
 
-    Logger.Log("Token was successfully initialized");
+    Logger.Log("Access token initialized successfully.");
     await runtimeServices.GetRequiredService<IRenderWorker>().RunAsync(cancellationToken);
 }
 catch (InvalidOperationException e)
 {
-    Logger.LogError(e.Message);
+    Logger.LogError(e, "CLI failed because the configuration or runtime dependencies are invalid.");
     if (Environment.UserInteractive)
         Console.ReadKey();
 }
@@ -89,6 +89,7 @@ catch (Exception e)
 {
     Logger.LogError(e, "Unhandled CLI exception");
     File.WriteAllText("error.txt", $"Crash: {e}");
+    Logger.LogError("Unhandled CLI exception was written to error.txt.");
 }
 finally
 {
@@ -101,10 +102,12 @@ static void ValidateRenderingDependencies(int osuClientId, string osuClientSecre
     DanserGo.AdjustDanserGoPath(Environment.OSVersion);
     if (!DanserGo.DanserExists())
         throw new InvalidOperationException("Danser-go does not exist!");
+    Logger.Log($"danser-go executable found at: {DanserGo.DanserGoPath}");
 
     ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
     if (!ExperimentalRenderer.ExperimentalRendererExists())
         throw new InvalidOperationException("Experimental renderer does not exist!");
+    Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
 
     WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
         Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffmpeg.exe"),
@@ -115,4 +118,5 @@ static void ValidateRenderingDependencies(int osuClientId, string osuClientSecre
     ]);
 
     DanserGo.CreateDirectoriesIfNeeded();
+    Logger.Log("Rendering dependencies validated.");
 }

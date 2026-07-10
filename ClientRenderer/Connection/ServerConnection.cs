@@ -36,6 +36,7 @@ namespace ClientRenderer.Connection
             _internalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _cancellationToken = _internalCts.Token;
             _sendHeartbeatsTask = Task.Run(SendHeartbeatWorker, _cancellationToken);
+            Logger.Log($"Server connection initialized. Base URL: {_httpClient.BaseAddress}");
         }
 
         public async Task<bool> InitializeToken()
@@ -64,13 +65,14 @@ namespace ClientRenderer.Connection
                 }
 
                 _nextTokenRefreshTime = DateTime.Now.AddSeconds(_lastClientCredentialsGrantResponse.ExpiresIn * 0.9);
+                Logger.Log($"Access token initialized. Refresh scheduled at {_nextTokenRefreshTime:O}.");
                 await SendHeartbeat();
                 return true;
             }
             catch (Exception ex)
             {
                 notifyHeartbeatFailure();
-                Logger.LogError($"InitializeToken failed: {ex.Message}");
+                Logger.LogError(ex, "Failed to initialize access token.");
                 return false;
             }
         }
@@ -89,21 +91,21 @@ namespace ClientRenderer.Connection
 
                     if (_nextTokenRefreshTime - DateTime.Now <= TimeSpan.Zero)
                     {
-                        Logger.Log("Reinitializing an access token");
+                        Logger.Log("Reinitializing access token.");
                         while (!await InitializeToken())
                         {
                             notifyHeartbeatFailure();
-                            Logger.Log("Error while reinitializing an access token. Retrying...");
+                            Logger.LogWarning("Failed to reinitialize access token. Retrying...");
                             await Task.Delay(5000, _cancellationToken);
                         }
                     }
                     await SendHeartbeat();
                     await Task.Delay(heartbeatIntervalMs, _cancellationToken);
                 }
-                catch (HttpRequestException)
+                catch (HttpRequestException ex)
                 {
                     notifyHeartbeatFailure();
-                    Logger.LogError("Error while doing a request. Retrying in 10 seconds...");
+                    Logger.LogError(ex, "Heartbeat request failed. Retrying in 10 seconds...");
                     await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken);
                 }
                 catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
@@ -113,7 +115,7 @@ namespace ClientRenderer.Connection
                 catch (Exception ex)
                 {
                     notifyHeartbeatFailure();
-                    Logger.LogError(ex.ToString());
+                    Logger.LogError(ex, "Unexpected heartbeat worker failure.");
                 }
             }
         }
@@ -155,14 +157,14 @@ namespace ClientRenderer.Connection
 
                     await Task.Delay(intervalMs, _cancellationToken);
                 }
-                catch (HttpRequestException)
+                catch (HttpRequestException ex)
                 {
-                    Logger.LogError("Error while doing a request. Retrying in 10 seconds...");
+                    Logger.LogError(ex, "Failed to get the next render job. Retrying in 10 seconds...");
                     await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex.ToString());
+                    Logger.LogError(ex, "Unexpected error while getting the next render job.");
                 }
             }
 
@@ -184,6 +186,7 @@ namespace ClientRenderer.Connection
 
         public async Task<byte[]> DownloadReplay(int jobId)
         {
+            Logger.Log($"[JobId:{jobId}] Downloading replay from server.");
             using HttpRequestMessage hrm = new HttpRequestMessage();
             hrm.Method = HttpMethod.Post;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"render/download-replay?job-id={jobId}");
@@ -195,6 +198,7 @@ namespace ClientRenderer.Connection
 
         public async Task<byte[]> DownloadSkin(string skinFileNameHex)
         {
+            Logger.Log($"Downloading skin file from server: {skinFileNameHex}");
             using HttpRequestMessage hrm = new HttpRequestMessage();
             hrm.Method = HttpMethod.Get;
             hrm.RequestUri = new Uri(_httpClient.BaseAddress!, $"skins/{skinFileNameHex}");
@@ -253,6 +257,7 @@ namespace ClientRenderer.Connection
 
         public async Task Failure(int jobId, string reason, bool rerender = true)
         {
+            Logger.LogWarning($"[JobId:{jobId}] Reporting render failure to server. Reason: {reason}. Rerender: {rerender}.");
             using HttpRequestMessage hrm = new HttpRequestMessage();
             hrm.Method = HttpMethod.Post;
             var encodedReason = Uri.EscapeDataString(reason ?? string.Empty);
@@ -274,6 +279,7 @@ namespace ClientRenderer.Connection
             FileInfo fileInfo = new FileInfo(videoPath);
             long fileSize = fileInfo.Length;
             int totalChunks = (int)Math.Ceiling((double)fileSize / chunkSizeBytes);
+            Logger.Log($"[JobId:{jobId}] Uploading video file. Size: {fileSize} bytes. Chunks: {totalChunks}.");
 
             await using FileStream fileStream = new FileStream(videoPath, FileMode.Open, FileAccess.Read);
 
@@ -313,7 +319,7 @@ namespace ClientRenderer.Connection
                     }
                     catch (Exception ex) when (attempts < maxRetriesPerChunk)
                     {
-                        Logger.LogError($"Error while uploading chunk {chunkIndex + 1}/{totalChunks}: {ex.Message}. Retry {attempts}/{maxRetriesPerChunk}...");
+                        Logger.LogError(ex, $"[JobId:{jobId}] Failed to upload chunk {chunkIndex + 1}/{totalChunks}. Retry {attempts}/{maxRetriesPerChunk}...");
                         await Task.Delay(1000, _cancellationToken);
                     }
                 }
@@ -327,6 +333,7 @@ namespace ClientRenderer.Connection
 
         public async Task UploadThumbnail(string thumbnailPath, int jobId)
         {
+            Logger.Log($"[JobId:{jobId}] Uploading thumbnail: {thumbnailPath}");
             using HttpRequestMessage hrm = new HttpRequestMessage();
 
             await using FileStream fileStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read);
@@ -353,6 +360,7 @@ namespace ClientRenderer.Connection
             }
             catch (OperationCanceledException)
             {
+                Logger.Log("Heartbeat worker was canceled during shutdown.");
             }
             finally
             {
@@ -370,8 +378,9 @@ namespace ClientRenderer.Connection
             {
                 return (await response.Content.ReadAsStringAsync()).Trim();
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.LogWarning($"Failed to read response body: {ex.Message}");
                 return string.Empty;
             }
         }

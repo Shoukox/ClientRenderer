@@ -16,6 +16,12 @@ namespace ClientRenderer.GUI
         public static void Main(string[] args)
         {
             Logger.Configure("ClientRenderer.GUI");
+
+            VelopackApp.Build()
+             .OnFirstRun((v) => { /* Your first run code here */ })
+             //.SetLogger(Log)
+             .Run();
+
             using SingleInstanceManager singleInstance = new SingleInstanceManager(singleInstanceAppId);
 
             if (!singleInstance.IsPrimaryInstance)
@@ -24,8 +30,9 @@ namespace ClientRenderer.GUI
                 {
                     singleInstance.SignalPrimaryInstance(TimeSpan.FromSeconds(2));
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Logger.LogWarning($"Failed to signal the primary instance: {ex.Message}");
                     // If the running instance is shutting down or not ready yet, just exit quietly.
                 }
 
@@ -37,10 +44,6 @@ namespace ClientRenderer.GUI
 
             try
             {
-                VelopackApp.Build()
-                 .OnFirstRun((v) => { /* Your first run code here */ })
-                 //.SetLogger(Log)
-                 .Run();
                 BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
             }
             finally

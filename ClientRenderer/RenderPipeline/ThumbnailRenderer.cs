@@ -35,24 +35,24 @@ namespace ClientRenderer.RenderPipeline
                 bool success = process.ExitCode == 0;
                 if (success)
                 {
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully rendered a thumbnail!");
+                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Thumbnail rendered successfully.");
                 }
                 else
                 {
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Failed to render a thumbnail!");
+                    Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render thumbnail. ffmpeg exit code: {process.ExitCode}.");
                     return false;
                 }
 
-                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Uploading the thumbnail...");
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Uploading thumbnail...");
                 await serverConnection.UploadThumbnail(thumbnailPath, info.RenderJob.JobId);
-                Logger.Log($"[JobId:{info.RenderJob!.JobId}] The thumbnail was successfully uploaded!");
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Thumbnail uploaded successfully.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 if (!process.HasExited)
                     process.Kill(true);
 
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render/upload a thumbnail! Cancelled.");
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render or upload thumbnail. Operation was canceled.");
                 throw;
             }
             catch (Exception ex)
@@ -60,8 +60,7 @@ namespace ClientRenderer.RenderPipeline
                 if (!process.HasExited)
                     process.Kill(true);
 
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render/upload a thumbnail! Skipping...");
-                Logger.LogError(ex.ToString());
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to render or upload thumbnail. Skipping thumbnail.");
                 return false;
             }
 

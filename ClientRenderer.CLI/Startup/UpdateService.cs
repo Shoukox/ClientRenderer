@@ -20,7 +20,10 @@ public sealed class UpdateService : IUpdateService
 
             var newVersion = await mgr.CheckForUpdatesAsync();
             if (newVersion == null)
+            {
+                Logger.Log("No updates available.");
                 return;
+            }
 
             Logger.Log($"Found new update: {newVersion.TargetFullRelease.Version}");
             await mgr.DownloadUpdatesAsync(newVersion);
@@ -29,7 +32,7 @@ public sealed class UpdateService : IUpdateService
         }
         catch (Exception ex)
         {
-            Logger.Log($"Failed to check for updates: {ex.Message}");
+            Logger.LogError(ex, "Failed to check for updates.");
         }
     }
 }

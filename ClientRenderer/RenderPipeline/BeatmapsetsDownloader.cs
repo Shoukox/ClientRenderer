@@ -65,6 +65,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             }
 
             _lastHashesReloadAtUtc = DateTime.UtcNow;
+            Logger.Log($"Loaded {BeatmapsMd5Hashes.Count} local beatmap hashes.");
         }
     }
 
@@ -103,7 +104,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                 return result;
         }
 
-        return Result.FromFailure(new Exception("Failed to set beatmapset infos"));
+        return Result.FromFailure(new Exception("Failed to set beatmapset info"));
     }
 
     private async Task<bool> BeatmapsetDirectoryContainsHash(string beatmapsetDirectoryPath, string beatmapHash)
@@ -128,7 +129,10 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             oszStreamCopy.Position = 0;
 
             if (oszStreamCopy.Length == 0)
+            {
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset stream was empty.");
                 return Result.FromFailure(new InvalidDataException("The downloaded beatmapset is empty."));
+            }
 
             string tempSuffix = $".download-{Guid.NewGuid():N}";
             string tempBeatmapsetDirectoryPath = info.BeatmapsetDirectoryPath + tempSuffix;
@@ -141,17 +145,23 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                     using FileStream fs = new FileStream(tempBeatmapsetOszPath, FileMode.CreateNew, FileAccess.Write);
                     await oszStreamCopy.CopyToAsync(fs);
                     oszStreamCopy.Position = 0;
+                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive saved for experimental renderer: {tempBeatmapsetOszPath}");
                 }
 
                 ZipFile.ExtractToDirectory(oszStreamCopy, tempBeatmapsetDirectoryPath);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive extracted to: {tempBeatmapsetDirectoryPath}");
 
                 if (!await BeatmapsetDirectoryContainsHash(tempBeatmapsetDirectoryPath, info.BeatmapHash))
+                {
+                    Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset archive does not contain beatmap hash {info.BeatmapHash}.");
                     return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive does not contain the requested beatmap."));
+                }
 
                 if (Directory.Exists(info.BeatmapsetDirectoryPath))
                     Directory.Delete(info.BeatmapsetDirectoryPath, true);
 
                 Directory.Move(tempBeatmapsetDirectoryPath, info.BeatmapsetDirectoryPath);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset moved to: {info.BeatmapsetDirectoryPath}");
 
                 if (info.UseExperimentalRenderer)
                 {
@@ -159,25 +169,34 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                         File.Delete(info.BeatmapsetOszPath);
 
                     File.Move(tempBeatmapsetOszPath, info.BeatmapsetOszPath);
+                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive moved to: {info.BeatmapsetOszPath}");
                 }
 
                 return Result.FromSuccess();
             }
             catch (InvalidDataException ex)
             {
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset archive is invalid.");
                 return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive is corrupt or is not a valid .osz/.zip file.", ex));
             }
             catch (Exception ex)
             {
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to save downloaded beatmapset.");
                 return Result.FromFailure(ex);
             }
             finally
             {
                 if (Directory.Exists(tempBeatmapsetDirectoryPath))
+                {
                     Directory.Delete(tempBeatmapsetDirectoryPath, true);
+                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Deleted temporary beatmapset directory: {tempBeatmapsetDirectoryPath}");
+                }
 
                 if (File.Exists(tempBeatmapsetOszPath))
+                {
                     File.Delete(tempBeatmapsetOszPath);
+                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Deleted temporary beatmapset archive: {tempBeatmapsetOszPath}");
+                }
             }
         }
     }
@@ -195,7 +214,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             if (!downloadResult.Success)
             {
                 lastException = downloadResult.Exception;
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] {providerName} failed to download beatmapset: {downloadResult.Exception!.Message}");
+                Logger.LogError(downloadResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} failed to download beatmapset.");
                 continue;
             }
 
@@ -204,7 +223,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                 return Result.FromSuccess();
 
             lastException = saveResult.Exception;
-            Logger.LogError($"[JobId:{info.RenderJob!.JobId}] {providerName} returned an invalid beatmapset, trying another provider. Error: {saveResult.Exception!.Message}");
+            Logger.LogError(saveResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} returned an invalid beatmapset. Trying another provider.");
         }
 
         return Result.FromFailure(lastException ?? new Exception("Failed to download a valid beatmapset."));
@@ -213,7 +232,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
     public async Task<bool> DownloadBeatmapset(RenderPipelineInfo info, IServerConnection serverConnection)
     {
         await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, -1);
-        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading a beatmap...");
+        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Preparing beatmap files...");
 
         string oszFileName = $"{info.BeatmapHash}.osz";
         info.BeatmapsetOszPath = Path.Combine(AppContext.BaseDirectory, oszFileName);
@@ -222,7 +241,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
 
         if (!BeatmapExists(info.BeatmapHash) || !DanserGo.BeatmapDirectoryExists(info.BeatmapsetDirectoryPath))
         {
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] The requested beatmap does not exist!");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Requested beatmap was not found locally.");
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading beatmapset...");
 
             var downloadResult = await DownloadAndSaveValidBeatmapset(info);
@@ -233,8 +252,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                     : BeatmapsetDownloadFailedFailureReason;
 
                 await serverConnection.Failure(info.RenderJob.JobId, failureReason, false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to download a valid beatmapset!");
-                Logger.LogError($"Error. Your osu_session cookie is probably expired. Renew it. Error message: {downloadResult.Exception!.Message}");
+                Logger.LogError(downloadResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] Failed to download a valid beatmapset. Failure reason: {failureReason}.");
                 return false;
             }
 
@@ -242,11 +260,11 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             if (!BeatmapExists(info.BeatmapHash))
             {
                 await serverConnection.Failure(info.RenderJob.JobId, BeatmapsetDownloadFailedFailureReason, false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset does not contain the requested beatmap!");
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset does not contain the requested beatmap.");
                 return false;
             }
 
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Successfully downloaded beatmapset! (.osz)");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset downloaded successfully.");
         }
         else
         {
@@ -256,8 +274,9 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                     File.Delete(info.BeatmapsetOszPath);
 
                 ZipFile.CreateFromDirectory(info.BeatmapsetDirectoryPath, info.BeatmapsetOszPath);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive created for experimental renderer: {info.BeatmapsetOszPath}");
             }
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmap exists locally, proceeding to render...");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmap exists locally. Proceeding to render.");
         }
 
         if (!_hashToValues.TryGetValue(info.BeatmapHash, out var beatmapsetInfo) || beatmapsetInfo.TotalLength is null)
@@ -265,13 +284,14 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             var result = await SetBeatmapsetInfos(info.BeatmapHash);
             if (!result.Success)
             {
-                await serverConnection.Failure(info.RenderJob.JobId, "Failed to retrieve beatmapset infos", false);
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to retrieve beatmapset infos...");
+                await serverConnection.Failure(info.RenderJob.JobId, "Failed to retrieve beatmapset info", false);
+                Logger.LogError(result.Exception!, $"[JobId:{info.RenderJob!.JobId}] Failed to retrieve beatmapset info.");
                 return false;
             }
         }
 
         info.BeatmapLength = _hashToValues[info.BeatmapHash].TotalLength;
+        Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmap length: {info.BeatmapLength} seconds.");
         return true;
     }
 }

@@ -75,11 +75,12 @@ namespace ClientRenderer.GUI.Services
             }
             catch (OperationCanceledException)
             {
+                Logger.LogWarning(string.Format(_localizer["Updates.Failed"], "Canceled."));
                 return UpdateCheckResult.Failed;
             }
             catch (Exception ex)
             {
-                Logger.LogError(string.Format(_localizer["Updates.Failed"], ex.Message));
+                Logger.LogError(ex, string.Format(_localizer["Updates.Failed"], ex.Message));
                 return UpdateCheckResult.Failed;
             }
             finally

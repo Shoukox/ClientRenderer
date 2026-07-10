@@ -15,7 +15,7 @@
 
     <ItemGroup>
       <PackageReference Include="CommandLineParser" Version="2.9.1" />
-      <PackageReference Include="Velopack" Version="0.0.1298" />
+      <PackageReference Include="Velopack" Version="1.2.0" />
     </ItemGroup>
 
     <ItemGroup>

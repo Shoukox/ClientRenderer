@@ -1,4 +1,6 @@
-﻿using Avalonia;
+﻿using System;
+using System.Runtime.CompilerServices;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
@@ -19,11 +21,7 @@ public static class Clipboard
         //Android (and iOS?)
         else if (Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime { MainView: { } mainView })
         {
-            var visualRoot = mainView.GetVisualRoot();
-            if (visualRoot is TopLevel topLevel)
-            {
-                return topLevel.Clipboard!;
-            }
+            return TopLevel.GetTopLevel(mainView)?.Clipboard ?? throw new InvalidOperationException("Control is not attached to a TopLevel.");
         }
 
         return null!;

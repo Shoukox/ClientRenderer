@@ -11,6 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 using OsuApi.BanchoV2;
 using System;
 using System.IO;
+using System.IO.Compression;
+using System.Net.Http;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -28,6 +31,9 @@ namespace ClientRenderer.GUI.Services
 
     public sealed class RendererService : IDisposable
     {
+        private const string DanserGoVersion = "0.11.0";
+        private const string DanserGoReleaseBaseUrl = "https://github.com/Wieku/danser-go/releases/download/0.11.0";
+
         public static RendererService Instance => _instance.Value;
         private static readonly Lazy<RendererService> _instance = new(() => new RendererService());
 
@@ -90,6 +96,7 @@ namespace ClientRenderer.GUI.Services
                 }
 
                 await stopInternalAsync().ConfigureAwait(false);
+                Logger.Log("Renderer service stopped. Restarting...");
                 _ = RunTask(encoder, serverUrl);
 
                 if (waitForOnline)
@@ -121,9 +128,9 @@ namespace ClientRenderer.GUI.Services
 
                 var appConfig = await bootstrapServices.GetRequiredService<IConfigurationLoader>().LoadAsync();
 
-                ValidateRenderingDependencies(appConfig.OsuApiV2Configuration.ClientId, appConfig.OsuApiV2Configuration.ClientSecret);
+                await ValidateRenderingDependenciesAsync(appConfig.OsuApiV2Configuration.ClientId, appConfig.OsuApiV2Configuration.ClientSecret, cancellationToken);
 
-                Logger.Log($"{encoder} has been set as a default danser encoder.");
+                Logger.Log($"{encoder} has been set as the default danser encoder.");
 
                 ServerConnection serverConnection = new ServerConnection(serverUrl, appConfig.RendererCredentials, cancellationToken);
                 serverConnection.HeartbeatStatusChanged += OnHeartbeatStatusChanged;
@@ -152,7 +159,7 @@ namespace ClientRenderer.GUI.Services
 
                 while (!await serverConnection.InitializeToken() && !cancellationToken.IsCancellationRequested)
                 {
-                    Logger.LogWarning("Failed to initialize a token, retrying in 5 seconds... Check your renderer-settings.json (or internet connection)");
+                    Logger.LogWarning("Failed to initialize access token. Retrying in 5 seconds. Check renderer-settings.json and the internet connection.");
                     await Task.Delay(5000, cancellationToken);
                 }
 
@@ -167,17 +174,18 @@ namespace ClientRenderer.GUI.Services
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                Logger.Log("Renderer service was cancelled.");
+                Logger.Log("Renderer service was canceled.");
             }
             catch (InvalidOperationException e)
             {
-                Logger.LogError(e.Message);
+                Logger.LogError(e, "Renderer service failed because the configuration or runtime dependencies are invalid.");
                 setStatus(RendererServiceState.Failed, 0);
             }
             catch (Exception e)
             {
-                Logger.LogError(e.ToString());
+                Logger.LogError(e, "Unhandled renderer service exception.");
                 File.WriteAllText("error.txt", $"Crash: {e}");
+                Logger.LogError("Unhandled renderer service exception was written to error.txt.");
                 setStatus(RendererServiceState.Failed, 0);
             }
             finally
@@ -219,6 +227,7 @@ namespace ClientRenderer.GUI.Services
             }
 
             cancellationTokenSource?.Cancel();
+            Logger.Log("Renderer service stop requested.");
 
             if (runTask != null)
             {
@@ -228,9 +237,11 @@ namespace ClientRenderer.GUI.Services
                 }
                 catch (OperationCanceledException)
                 {
+                    Logger.Log("Renderer service task was canceled.");
                 }
                 catch (AggregateException ex) when (ex.InnerExceptions.Count == 1 && ex.InnerException is OperationCanceledException)
                 {
+                    Logger.Log("Renderer service task was canceled.");
                 }
             }
         }
@@ -255,16 +266,18 @@ namespace ClientRenderer.GUI.Services
                 handler?.Invoke(snapshot);
         }
 
-        private static void ValidateRenderingDependencies(int osuClientId, string osuClientSecret)
+        private static async Task ValidateRenderingDependenciesAsync(int osuClientId, string osuClientSecret, CancellationToken cancellationToken)
         {
             DanserGo.AdjustOsuApiCredentials(osuClientId, osuClientSecret);
             DanserGo.AdjustDanserGoPath(Environment.OSVersion);
             if (!DanserGo.DanserExists())
-                throw new InvalidOperationException("Danser-go does not exist!");
+                await DownloadAndExtractDanserGoAsync(cancellationToken);
+            Logger.Log($"danser-go executable found at: {DanserGo.DanserGoPath}");
 
             ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
             if (!ExperimentalRenderer.ExperimentalRendererExists())
                 throw new InvalidOperationException("Experimental renderer does not exist!");
+            Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
 
             WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
                 DanserGo.DanserGoPath,
@@ -278,6 +291,91 @@ namespace ClientRenderer.GUI.Services
             ]);
 
             DanserGo.CreateDirectoriesIfNeeded();
+            Logger.Log("Rendering dependencies validated.");
+        }
+
+        private static async Task DownloadAndExtractDanserGoAsync(CancellationToken cancellationToken)
+        {
+            string downloadUrl = GetDanserGoDownloadUrl();
+            string archivePath = Path.Combine(Path.GetTempPath(), $"danser-go-{DanserGoVersion}-{Guid.NewGuid():N}.zip");
+
+            Logger.LogWarning($"danser-go was not found at: {DanserGo.DanserGoPath}");
+            Logger.Log($"Downloading danser-go {DanserGoVersion} from: {downloadUrl}");
+
+            try
+            {
+                using HttpClient httpClient = new();
+                await using (Stream downloadStream = await httpClient.GetStreamAsync(downloadUrl, cancellationToken))
+                await using (FileStream archiveStream = File.Create(archivePath))
+                {
+                    await downloadStream.CopyToAsync(archiveStream, cancellationToken);
+                }
+
+                Directory.CreateDirectory(DanserGo.DanserGoDirectoryPath);
+                Logger.Log($"Extracting danser-go archive to: {DanserGo.DanserGoDirectoryPath}");
+                ZipFile.ExtractToDirectory(archivePath, DanserGo.DanserGoDirectoryPath, overwriteFiles: true);
+                EnsureDanserGoExecutablePermissions();
+
+                if (!DanserGo.DanserExists())
+                    throw new FileNotFoundException($"danser-go archive was extracted, but the executable was not found at: {DanserGo.DanserGoPath}");
+
+                Logger.Log($"danser-go {DanserGoVersion} was downloaded and extracted successfully.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to download or extract danser-go.");
+                throw;
+            }
+            finally
+            {
+                if (File.Exists(archivePath))
+                    File.Delete(archivePath);
+            }
+        }
+
+        private static string GetDanserGoDownloadUrl()
+        {
+            string archiveName;
+            if (OperatingSystem.IsWindows())
+            {
+                archiveName = $"danser-{DanserGoVersion}-win.zip";
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                archiveName = $"danser-{DanserGoVersion}-linux.zip";
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("danser-go 0.11.0 only provides Windows and Linux release archives.");
+            }
+
+            return $"{DanserGoReleaseBaseUrl}/{archiveName}";
+        }
+
+        private static void EnsureDanserGoExecutablePermissions()
+        {
+            if (!OperatingSystem.IsLinux())
+                return;
+
+            UnixFileMode executableMode =
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+
+            SetExecutableModeIfExists(DanserGo.DanserGoPath, executableMode);
+            SetExecutableModeIfExists(Path.Combine(DanserGo.DanserGoDirectoryPath, "danser"), executableMode);
+            SetExecutableModeIfExists(Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffmpeg"), executableMode);
+            SetExecutableModeIfExists(Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffprobe"), executableMode);
+        }
+
+        [SupportedOSPlatform("linux")]
+        private static void SetExecutableModeIfExists(string path, UnixFileMode mode)
+        {
+            if (File.Exists(path))
+            {
+                File.SetUnixFileMode(path, mode);
+                Logger.Log($"Executable permission set for: {path}");
+            }
         }
 
         public void Dispose()

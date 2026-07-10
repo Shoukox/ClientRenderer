@@ -149,6 +149,7 @@ namespace ClientRenderer.GUI.ViewModels
             try
             {
                 ConsolePageViewModel.Instance.Clear();
+                Logger.Log("Renderer service restart requested from status page.");
                 await _rendererService.RestartAsync(waitForOnline: true);
 
                 var currentStatus = _rendererService.Status.State;
@@ -157,8 +158,9 @@ namespace ClientRenderer.GUI.ViewModels
                 else
                     await showRestartFeedbackAsync("✕", Brushes.IndianRed);
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.LogError(ex, "Renderer service restart failed.");
                 await showRestartFeedbackAsync("✕", Brushes.IndianRed);
                 throw;
             }
@@ -175,6 +177,7 @@ namespace ClientRenderer.GUI.ViewModels
                 return;
 
             clearUpdateFeedback();
+            Logger.Log("Manual update check requested from status page.");
             var result = await _updateService.CheckForUpdatesAsync(silentIfUpToDate: false);
 
             switch (result)
@@ -196,6 +199,7 @@ namespace ClientRenderer.GUI.ViewModels
         private void OpenSettingsFolder()
         {
             Directory.CreateDirectory(App.SettingsProvider.RendererSettingsDirectory);
+            Logger.Log($"Opening settings folder: {App.SettingsProvider.RendererSettingsDirectory}");
             Process.Start(new ProcessStartInfo
             {
                 FileName = App.SettingsProvider.RendererSettingsDirectory,
@@ -212,9 +216,10 @@ namespace ClientRenderer.GUI.ViewModels
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.ToString());
+                Logger.LogError(ex, "Failed to save settings before opening the client settings file.");
             }
 
+            Logger.Log($"Opening client settings file: {App.SettingsProvider.FilePath}");
             Process? process = Process.Start(new ProcessStartInfo
             {
                 FileName = App.SettingsProvider.FilePath,
@@ -230,6 +235,7 @@ namespace ClientRenderer.GUI.ViewModels
         [RelayCommand]
         private void RestartApplication()
         {
+            Logger.Log("Application restart requested from status page.");
             ApplicationRestartHelper.RestartApplication();
         }
 
@@ -237,6 +243,7 @@ namespace ClientRenderer.GUI.ViewModels
         private void OpenLogsFolder()
         {
             Directory.CreateDirectory(Logger.LogsDirectory);
+            Logger.Log($"Opening logs folder: {Logger.LogsDirectory}");
             Process.Start(new ProcessStartInfo
             {
                 FileName = Logger.LogsDirectory,

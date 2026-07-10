@@ -43,7 +43,6 @@ namespace ClientRenderer.GUI
         {
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                DisableAvaloniaDataAnnotationValidation();
                 desktop.MainWindow = new MainWindow
                 {
                     DataContext = new MainWindowViewModel(),
@@ -133,17 +132,6 @@ namespace ClientRenderer.GUI
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.MainWindow!.Title = Localizer["App.Title"];
-            }
-        }
-
-        private void DisableAvaloniaDataAnnotationValidation()
-        {
-            var dataValidationPluginsToRemove =
-                BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
-
-            foreach (var plugin in dataValidationPluginsToRemove)
-            {
-                BindingPlugins.DataValidators.Remove(plugin);
             }
         }
 
