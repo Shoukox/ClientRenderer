@@ -22,10 +22,20 @@
 						  ScrollChanged="ScrollViewer_ScrollChanged"
 						  Initialized="ScrollViewer_Initialized"
 						  Grid.Row="1">
-				<SelectableTextBlock 
-									 Classes="console-output"
-									 Text="{Binding ConsoleText}"
-									 TextWrapping="Wrap" />
+				<ItemsControl Classes="console-output"
+							  ItemsSource="{Binding ConsoleLines}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate x:DataType="vm:ConsoleLine">
+							<TextBlock Classes="console-output-line"
+									   TextWrapping="Wrap">
+								<Run Text="{Binding Timestamp}" />
+								<Run Text="{Binding LevelText}"
+									 Foreground="{Binding LevelBrush}" />
+								<Run Text="{Binding Message}" />
+							</TextBlock>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
 			</ScrollViewer>
 		</Grid>
 	</Border>

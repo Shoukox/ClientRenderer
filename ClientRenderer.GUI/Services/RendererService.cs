@@ -9,9 +9,8 @@ using DanserWrapper;
 using ExperimentalRendererWrapper;
 using Microsoft.Extensions.DependencyInjection;
 using OsuApi.BanchoV2;
-using SharpCompress.Archives.SevenZip;
-using SharpCompress.Readers;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -273,27 +272,31 @@ namespace ClientRenderer.GUI.Services
 
         private static async Task ValidateRenderingDependenciesAsync(int osuClientId, string osuClientSecret, CancellationToken cancellationToken)
         {
-            DanserGo.AdjustOsuApiCredentials(osuClientId, osuClientSecret);
             DanserGo.AdjustDanserGoPath(Environment.OSVersion);
             if (!DanserGo.DanserExists())
                 await DownloadAndExtractDanserGoAsync(cancellationToken);
             Logger.Log($"danser-go executable found at: {DanserGo.DanserGoPath}");
+            await EnsureDanserGoSettingsInitializedAsync(cancellationToken);
+            DanserGo.AdjustOsuApiCredentials(osuClientId, osuClientSecret);
 
             ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
             if (!ExperimentalRenderer.ExperimentalRendererExists())
                 await DownloadAndExtractExperimentalRendererAsync(cancellationToken);
             Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
 
-            WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
-                DanserGo.DanserGoPath,
-                ExperimentalRenderer.ExperimentalRendererPath,
-                Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffmpeg.exe"),
-                Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffprobe.exe"),
-                Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffplay.exe"),
-                Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe"),
-                Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffprobe.exe"),
-                Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffplay.exe")
-            ]);
+            if (OperatingSystem.IsWindows())
+            {
+                WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
+                    DanserGo.DanserGoPath,
+                    ExperimentalRenderer.ExperimentalRendererPath,
+                    Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffmpeg.exe"),
+                    Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffprobe.exe"),
+                    Path.Combine(DanserGo.DanserGoDirectoryPath, "ffmpeg", "ffplay.exe"),
+                    Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe"),
+                    Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffprobe.exe"),
+                    Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffplay.exe")
+                ]);
+            }
 
             DanserGo.CreateDirectoriesIfNeeded();
             Logger.Log("Rendering dependencies validated.");
@@ -301,6 +304,11 @@ namespace ClientRenderer.GUI.Services
 
         private static async Task DownloadAndExtractDanserGoAsync(CancellationToken cancellationToken)
         {
+            if (Directory.Exists(DanserGo.DanserGoDirectoryPath))
+            {
+                Directory.Delete(DanserGo.DanserGoDirectoryPath, true);
+            }
+            
             string downloadUrl = GetDanserGoDownloadUrl();
             string archivePath = Path.Combine(Path.GetTempPath(), $"danser-go-{DanserGoVersion}-{Guid.NewGuid():N}.zip");
 
@@ -310,11 +318,7 @@ namespace ClientRenderer.GUI.Services
             try
             {
                 using HttpClient httpClient = new();
-                await using (Stream downloadStream = await httpClient.GetStreamAsync(downloadUrl, cancellationToken))
-                await using (FileStream archiveStream = File.Create(archivePath))
-                {
-                    await downloadStream.CopyToAsync(archiveStream, cancellationToken);
-                }
+                await DownloadFileWithProgressAsync(httpClient, downloadUrl, archivePath, "danser-go", cancellationToken);
 
                 Directory.CreateDirectory(DanserGo.DanserGoDirectoryPath);
                 Logger.Log($"Extracting danser-go archive to: {DanserGo.DanserGoDirectoryPath}");
@@ -357,10 +361,167 @@ namespace ClientRenderer.GUI.Services
             return $"{DanserGoReleaseBaseUrl}/{archiveName}";
         }
 
+        private static async Task DownloadFileWithProgressAsync(HttpClient httpClient, string downloadUrl, string destinationPath, string displayName, CancellationToken cancellationToken)
+        {
+            using HttpResponseMessage response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            long? totalBytes = response.Content.Headers.ContentLength;
+            await using Stream downloadStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using FileStream outputStream = File.Create(destinationPath);
+
+            byte[] buffer = new byte[128 * 1024];
+            long downloadedBytes = 0;
+            int lastLoggedPercent = -1;
+            DateTime lastLogTimeUtc = DateTime.MinValue;
+
+            Logger.Log(totalBytes is > 0
+                ? $"Downloading {displayName}: 0.00% (0.00 MB / {FormatMegabytes(totalBytes.Value)} MB)"
+                : $"Downloading {displayName}: 0.00 MB");
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                int bytesRead = await downloadStream.ReadAsync(buffer, cancellationToken);
+                if (bytesRead == 0)
+                    break;
+
+                await outputStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                downloadedBytes += bytesRead;
+
+                if (ShouldLogDownloadProgress(totalBytes, downloadedBytes, ref lastLoggedPercent, ref lastLogTimeUtc))
+                    LogDownloadProgress(displayName, downloadedBytes, totalBytes);
+            }
+
+            if (totalBytes is not > 0 || lastLoggedPercent < 100)
+                LogDownloadProgress(displayName, downloadedBytes, totalBytes);
+        }
+
+        private static bool ShouldLogDownloadProgress(long? totalBytes, long downloadedBytes, ref int lastLoggedPercent, ref DateTime lastLogTimeUtc)
+        {
+            DateTime now = DateTime.UtcNow;
+
+            if (totalBytes is > 0)
+            {
+                int currentPercent = (int)Math.Floor(downloadedBytes * 100.0 / totalBytes.Value);
+                if (currentPercent >= 100)
+                {
+                    bool shouldLog = lastLoggedPercent < 100;
+                    lastLoggedPercent = 100;
+                    lastLogTimeUtc = now;
+                    return shouldLog;
+                }
+
+                if (currentPercent >= lastLoggedPercent + 5)
+                {
+                    lastLoggedPercent = currentPercent;
+                    lastLogTimeUtc = now;
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (now - lastLogTimeUtc < TimeSpan.FromSeconds(1))
+                return false;
+
+            lastLogTimeUtc = now;
+            return true;
+        }
+
+        private static void LogDownloadProgress(string displayName, long downloadedBytes, long? totalBytes)
+        {
+            Logger.Log(totalBytes is > 0
+                ? $"Downloading {displayName}: {downloadedBytes * 100.0 / totalBytes.Value:0.00}% ({FormatMegabytes(downloadedBytes)} MB / {FormatMegabytes(totalBytes.Value)} MB)"
+                : $"Downloading {displayName}: {FormatMegabytes(downloadedBytes)} MB");
+        }
+
+        private static string FormatMegabytes(long bytes)
+        {
+            return (bytes / 1024.0 / 1024.0).ToString("0.00");
+        }
+
+        private static async Task EnsureDanserGoSettingsInitializedAsync(CancellationToken cancellationToken)
+        {
+            string settingsDirectory = Path.Combine(DanserGo.DanserGoDirectoryPath, "settings");
+            string defaultSettingsPath = Path.Combine(settingsDirectory, "default.json");
+
+            if (File.Exists(defaultSettingsPath))
+                return;
+
+            Logger.Log($"danser-go settings were not found at: {settingsDirectory}. Running danser-go once to initialize them.");
+
+            using Process process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = DanserGo.DanserGoPath,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    RedirectStandardInput = false,
+                    WorkingDirectory = DanserGo.DanserGoDirectoryPath
+                }
+            };
+
+            process.Start();
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+            try
+            {
+                using CancellationTokenSource timeoutCts = new(TimeSpan.FromSeconds(30));
+                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+                while (!File.Exists(defaultSettingsPath) && !process.HasExited)
+                    await Task.Delay(250, linkedCts.Token);
+
+                if (File.Exists(defaultSettingsPath))
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                        await process.WaitForExitAsync(cancellationToken);
+                    }
+
+                    Logger.Log($"danser-go settings initialized at: {settingsDirectory}");
+                    return;
+                }
+
+                await process.WaitForExitAsync(linkedCts.Token);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+
+                throw;
+            }
+            catch (OperationCanceledException ex)
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+
+                throw new TimeoutException("danser-go did not create its settings directory within 30 seconds.", ex);
+            }
+
+            if (!File.Exists(defaultSettingsPath))
+            {
+                string output = outputTask.IsCompletedSuccessfully ? outputTask.Result : string.Empty;
+                string error = errorTask.IsCompletedSuccessfully ? errorTask.Result : string.Empty;
+                throw new InvalidOperationException($"danser-go exited without creating {defaultSettingsPath}. Exit code: {process.ExitCode}. Output: {output}. Error: {error}");
+            }
+        }
+
         private static async Task DownloadAndExtractExperimentalRendererAsync(CancellationToken cancellationToken)
         {
+            if (Directory.Exists(ExperimentalRenderer.ExperimentalRendererDirectoryPath))
+            {
+                Directory.Delete(ExperimentalRenderer.ExperimentalRendererDirectoryPath, true);
+            }
+            
             string downloadUrl = GetExperimentalRendererDownloadUrl();
-            string archivePath = Path.Combine(Path.GetTempPath(), $"experimental-renderer-{ExperimentalRendererVersion}-{Guid.NewGuid():N}.7z");
+            string archivePath = Path.Combine(Path.GetTempPath(), $"experimental-renderer-{ExperimentalRendererVersion}-{Guid.NewGuid():N}.zip");
 
             Logger.LogWarning($"Experimental renderer was not found at: {ExperimentalRenderer.ExperimentalRendererPath}");
             Logger.Log($"Downloading experimental renderer {ExperimentalRendererVersion} from: {downloadUrl}");
@@ -368,35 +529,11 @@ namespace ClientRenderer.GUI.Services
             try
             {
                 using HttpClient httpClient = new();
-                await using (Stream downloadStream = await httpClient.GetStreamAsync(downloadUrl, cancellationToken))
-                await using (FileStream archiveStream = File.Create(archivePath))
-                {
-                    await downloadStream.CopyToAsync(archiveStream, cancellationToken);
-                }
+                await DownloadFileWithProgressAsync(httpClient, downloadUrl, archivePath, "experimental renderer", cancellationToken);
 
                 Directory.CreateDirectory(ExperimentalRenderer.ExperimentalRendererDirectoryPath);
                 Logger.Log($"Extracting experimental renderer archive to: {ExperimentalRenderer.ExperimentalRendererDirectoryPath}");
-
-                using (var archive = SevenZipArchive.OpenArchive(archivePath, ReaderOptions.ForFilePath))
-                {
-                    foreach (var entry in archive.Entries)
-                    {
-                        string? targetPath = GetExperimentalRendererExtractPath(entry.Key);
-                        if (targetPath == null)
-                            continue;
-
-                        if (entry.IsDirectory)
-                        {
-                            Directory.CreateDirectory(targetPath);
-                            continue;
-                        }
-
-                        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-                        await using Stream entryStream = entry.OpenEntryStream();
-                        await using FileStream outputStream = File.Create(targetPath);
-                        await entryStream.CopyToAsync(outputStream, cancellationToken);
-                    }
-                }
+                ExtractExperimentalRendererArchive(archivePath, cancellationToken);
 
                 if (!ExperimentalRenderer.ExperimentalRendererExists())
                     throw new FileNotFoundException($"Experimental renderer archive was extracted, but the executable was not found at: {ExperimentalRenderer.ExperimentalRendererPath}");
@@ -416,16 +553,78 @@ namespace ClientRenderer.GUI.Services
             }
         }
 
+        private static void ExtractExperimentalRendererArchive(string archivePath, CancellationToken cancellationToken)
+        {
+            string stagingDirectoryPath = Path.Combine(Path.GetTempPath(), $"experimental-renderer-extract-{Guid.NewGuid():N}");
+
+            try
+            {
+                Directory.CreateDirectory(stagingDirectoryPath);
+
+                cancellationToken.ThrowIfCancellationRequested();
+                ZipFile.ExtractToDirectory(archivePath, stagingDirectoryPath, overwriteFiles: true);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                string sourceDirectoryPath = GetExperimentalRendererStagingSourceDirectory(stagingDirectoryPath);
+                CopyDirectoryContents(sourceDirectoryPath, ExperimentalRenderer.ExperimentalRendererDirectoryPath);
+                Logger.Log($"Experimental renderer archive extracted successfully. Files copied from: {sourceDirectoryPath}");
+            }
+            finally
+            {
+                if (Directory.Exists(stagingDirectoryPath))
+                    Directory.Delete(stagingDirectoryPath, true);
+            }
+        }
+
+        private static string GetExperimentalRendererStagingSourceDirectory(string stagingDirectoryPath)
+        {
+            string[] candidateRoots =
+            [
+                Path.Combine(stagingDirectoryPath, "win-x64"),
+                Path.Combine(stagingDirectoryPath, "linux-x64")
+            ];
+
+            string? sourceDirectoryPath = candidateRoots.FirstOrDefault(Directory.Exists);
+            return sourceDirectoryPath ?? stagingDirectoryPath;
+        }
+
+        private static void CopyDirectoryContents(string sourceDirectoryPath, string destinationDirectoryPath)
+        {
+            string sourceRoot = Path.GetFullPath(sourceDirectoryPath);
+            string destinationRoot = Path.GetFullPath(destinationDirectoryPath);
+            Directory.CreateDirectory(destinationRoot);
+
+            foreach (string directoryPath in Directory.EnumerateDirectories(sourceRoot, "*", SearchOption.AllDirectories))
+            {
+                string relativePath = Path.GetRelativePath(sourceRoot, directoryPath);
+                if (relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(p => p == "." || p == ".."))
+                    throw new InvalidDataException($"Experimental renderer archive directory escapes the staging directory: {directoryPath}");
+
+                Directory.CreateDirectory(Path.Combine(destinationRoot, relativePath));
+            }
+
+            foreach (string filePath in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+            {
+                string relativePath = Path.GetRelativePath(sourceRoot, filePath);
+                if (relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(p => p == "." || p == ".."))
+                    throw new InvalidDataException($"Experimental renderer archive file escapes the staging directory: {filePath}");
+
+                string destinationPath = Path.Combine(destinationRoot, relativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+                File.Copy(filePath, destinationPath, overwrite: true);
+            }
+        }
+
         private static string GetExperimentalRendererDownloadUrl()
         {
             string archiveName;
             if (OperatingSystem.IsWindows())
             {
-                archiveName = "experimental-renderer.win-x64.7z";
+                archiveName = "experimental-renderer.win-x64.zip";
             }
             else if (OperatingSystem.IsLinux())
             {
-                archiveName = "experimental-renderer.linux-x64.7z";
+                archiveName = "experimental-renderer.linux-x64.zip";
             }
             else
             {
@@ -433,39 +632,6 @@ namespace ClientRenderer.GUI.Services
             }
 
             return $"{ExperimentalRendererReleaseBaseUrl}/{archiveName}";
-        }
-
-        private static string? GetExperimentalRendererExtractPath(string? entryKey)
-        {
-            if (string.IsNullOrWhiteSpace(entryKey))
-                return null;
-
-            string[] parts = entryKey
-                .Replace('\\', '/')
-                .Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-            if (parts.Length == 0)
-                return null;
-
-            if (parts[0].Equals("win-x64", StringComparison.OrdinalIgnoreCase) ||
-                parts[0].Equals("linux-x64", StringComparison.OrdinalIgnoreCase))
-            {
-                parts = parts.Skip(1).ToArray();
-            }
-
-            if (parts.Length == 0 || parts.Any(p => p == "." || p == ".."))
-                return null;
-
-            string destinationRoot = Path.GetFullPath(ExperimentalRenderer.ExperimentalRendererDirectoryPath);
-            string destinationPath = Path.GetFullPath(Path.Combine(new[] { destinationRoot }.Concat(parts).ToArray()));
-
-            if (!destinationPath.StartsWith(destinationRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
-                !destinationPath.Equals(destinationRoot, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException($"Experimental renderer archive entry escapes the destination directory: {entryKey}");
-            }
-
-            return destinationPath;
         }
 
         private static void EnsureExperimentalRendererExecutablePermissions()

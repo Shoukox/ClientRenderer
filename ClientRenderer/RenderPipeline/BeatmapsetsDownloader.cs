@@ -13,8 +13,9 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
 {
     private const string BeatmapNotFoundFailureReason = "beatmap_not_found";
     private const string BeatmapsetDownloadFailedFailureReason = "beatmapset_download_failed";
+    private static readonly TimeSpan FirstBeatmapsetByteTimeout = TimeSpan.FromSeconds(15);
 
-    private static HttpClient s_HttpClient { get; } = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private static HttpClient s_HttpClient { get; } = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     private readonly ConcurrentDictionary<string, BeatmapsetInfo> _hashToValues = new();
     private List<string> BeatmapsMd5Hashes = new();
@@ -31,6 +32,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
         BeatmapsetsProviders =
         [
             new SyuiProvider(s_HttpClient, _hashToValues),
+            new SayobotProvider(s_HttpClient, _hashToValues),
             new MinoProvider(s_HttpClient, _hashToValues),
             new OsuProvider(banchoApiV2, osuSessionCookie, s_HttpClient, _hashToValues),
         ];
@@ -77,21 +79,34 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
 
     public async Task<Result<Stream>> DownloadBeatmapsetAsStream(string beatmapHash)
     {
+        Exception? lastException = null;
+
         foreach (var provider in BeatmapsetsProviders)
         {
+            string providerName = provider.GetType().Name;
             var downloadResult = await provider.DownloadBeatmapset(beatmapHash);
-            if (downloadResult.Success)
-                return downloadResult;
+            if (!downloadResult.Success)
+            {
+                lastException = downloadResult.Exception;
+                continue;
+            }
+
+            var firstByteResult = await EnsureFirstBeatmapsetByteArrives(downloadResult.Output!, providerName);
+            if (firstByteResult.Success)
+                return firstByteResult;
+
+            lastException = firstByteResult.Exception;
+            Logger.LogError(firstByteResult.Exception!, $"{providerName} did not return beatmapset data quickly enough. Trying another provider.");
         }
 
-        return Result<Stream>.FromFailure(new Exception("Failed to download a beatmapset"));
+        return Result<Stream>.FromFailure(lastException ?? new Exception("Failed to download a beatmapset"));
     }
 
     public async Task<Result<Stream>> DownloadBeatmapsetAsStreamUsingFallbackProvider(string beatmapHash)
     {
         var downloadResult = await FallbackProvider.DownloadBeatmapset(beatmapHash);
         return downloadResult.Success
-            ? downloadResult
+            ? await EnsureFirstBeatmapsetByteArrives(downloadResult.Output!, FallbackProvider.GetType().Name)
             : Result<Stream>.FromFailure(new Exception("Failed to download a beatmapset"));
     }
 
@@ -218,7 +233,15 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
                 continue;
             }
 
-            var saveResult = await SaveBeatmapsetStreamAsFile(info, downloadResult.Output!);
+            var firstByteResult = await EnsureFirstBeatmapsetByteArrives(downloadResult.Output!, providerName);
+            if (!firstByteResult.Success)
+            {
+                lastException = firstByteResult.Exception;
+                Logger.LogError(firstByteResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} did not return beatmapset data quickly enough. Trying another provider.");
+                continue;
+            }
+
+            var saveResult = await SaveBeatmapsetStreamAsFile(info, firstByteResult.Output!);
             if (saveResult.Success)
                 return Result.FromSuccess();
 
@@ -227,6 +250,95 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
         }
 
         return Result.FromFailure(lastException ?? new Exception("Failed to download a valid beatmapset."));
+    }
+
+    private static async Task<Result<Stream>> EnsureFirstBeatmapsetByteArrives(Stream stream, string providerName)
+    {
+        byte[] firstByte = new byte[1];
+
+        try
+        {
+            int bytesRead = await stream.ReadAsync(firstByte.AsMemory(0, 1)).AsTask().WaitAsync(FirstBeatmapsetByteTimeout);
+            if (bytesRead == 0)
+            {
+                await stream.DisposeAsync();
+                return Result<Stream>.FromFailure(new InvalidDataException($"{providerName} returned an empty beatmapset stream."));
+            }
+
+            return Result<Stream>.FromSuccess(new PrefixedStream(firstByte[0], stream));
+        }
+        catch (TimeoutException ex)
+        {
+            await stream.DisposeAsync();
+            return Result<Stream>.FromFailure(new TimeoutException($"{providerName} did not send the first .osz byte within {FirstBeatmapsetByteTimeout.TotalSeconds:0} seconds.", ex));
+        }
+        catch (Exception ex)
+        {
+            await stream.DisposeAsync();
+            return Result<Stream>.FromFailure(ex);
+        }
+    }
+
+    private sealed class PrefixedStream(byte firstByte, Stream innerStream) : Stream
+    {
+        private bool _firstByteRead;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override void Flush() => innerStream.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (count <= 0)
+                return 0;
+
+            if (_firstByteRead)
+                return innerStream.Read(buffer, offset, count);
+
+            buffer[offset] = firstByte;
+            _firstByteRead = true;
+            return 1;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (buffer.Length <= 0)
+                return 0;
+
+            if (_firstByteRead)
+                return await innerStream.ReadAsync(buffer, cancellationToken);
+
+            buffer.Span[0] = firstByte;
+            _firstByteRead = true;
+            return 1;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                innerStream.Dispose();
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await innerStream.DisposeAsync();
+            await base.DisposeAsync();
+        }
     }
 
     public async Task<bool> DownloadBeatmapset(RenderPipelineInfo info, IServerConnection serverConnection)

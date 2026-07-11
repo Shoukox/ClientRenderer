@@ -66,7 +66,7 @@ public static class Logger
 
     public static void LogWarning(string message)
     {
-        Write(LogEventLevel.Warning, message);
+        Write(LogEventLevel.Warning, "[WARNING] " + message);
     }
 
     public static void LogError(string message)
@@ -82,7 +82,7 @@ public static class Logger
     public static void LogError(Exception exception, string message)
     {
         MessageLogged?.Invoke(LogEventLevel.Error, message);
-        Serilog.Log.Error(exception, "{Message}", message);
+        Serilog.Log.Error(exception, "{{ERROR}} {Message}", message);
     }
 
     private static void Write(LogEventLevel level, string message)

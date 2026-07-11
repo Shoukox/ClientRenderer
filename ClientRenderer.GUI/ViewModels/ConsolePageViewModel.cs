@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Serilog.Events;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text;
 using System.Threading;
@@ -16,6 +17,8 @@ using Avalonia.Input.Platform;
 
 namespace ClientRenderer.GUI.ViewModels
 {
+    public sealed record ConsoleLine(string Timestamp, string LevelText, string Message, IBrush? LevelBrush);
+
     public partial class ConsolePageViewModel : ViewModelBase
     {
         public static ConsolePageViewModel Instance { get; } = new();
@@ -23,11 +26,13 @@ namespace ClientRenderer.GUI.ViewModels
         private const int maxRetainedLines = 2000;
         private static readonly TimeSpan flushInterval = TimeSpan.FromMilliseconds(150);
 
-        private readonly Queue<string> _lines = new();
-        private readonly Queue<string> _pendingLines = new();
+        private readonly Queue<ConsoleLine> _lines = new();
+        private readonly Queue<ConsoleLine> _pendingLines = new();
         private readonly StringBuilder _consoleBuffer = new();
         private readonly object _sync = new();
         private readonly LocalizationService _localizer = App.Localizer;
+        private readonly IBrush _warningBrush;
+        private readonly IBrush _errorBrush;
 
         private DispatcherTimer? _flushTimer;
         private CancellationTokenSource? _copyFeedbackCts;
@@ -37,6 +42,8 @@ namespace ClientRenderer.GUI.ViewModels
 
         [ObservableProperty]
         private string _consoleText = string.Empty;
+
+        public ObservableCollection<ConsoleLine> ConsoleLines { get; } = new();
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CopyIcon))]
@@ -58,6 +65,8 @@ namespace ClientRenderer.GUI.ViewModels
             }
             ConsoleBackgroundNormal = (IBrush)backgroundNormalResource!;
             ConsoleBackgroundError = (IBrush)backgroundErrorResource!;
+            _warningBrush = TryGetConsoleBrush("Console.Warning") ?? Brushes.Orange;
+            _errorBrush = TryGetConsoleBrush("Console.Error") ?? Brushes.Red;
 
             UpdateLocalizedText();
             _localizer.LanguageChanged += (_, _) => UpdateLocalizedText();
@@ -67,7 +76,34 @@ namespace ClientRenderer.GUI.ViewModels
 
         public void AddLine(string text)
         {
-            enqueueLine($"[{DateTime.Now:HH:mm:ss}] {text}");
+            AddLine(LogEventLevel.Information, text);
+        }
+
+        public void AddLine(LogEventLevel level, string text)
+        {
+            const string warningPrefix = "[WARNING] ";
+            const string errorPrefix = "[ERROR] ";
+            string levelText = string.Empty;
+            IBrush? levelBrush = null;
+
+            if (level == LogEventLevel.Warning)
+            {
+                levelText = warningPrefix;
+                levelBrush = _warningBrush;
+
+                if (text.StartsWith(warningPrefix, StringComparison.Ordinal))
+                    text = text[warningPrefix.Length..];
+            }
+            else if (level == LogEventLevel.Error)
+            {
+                levelText = errorPrefix;
+                levelBrush = _errorBrush;
+
+                if (text.StartsWith(errorPrefix, StringComparison.Ordinal))
+                    text = text[errorPrefix.Length..];
+            }
+
+            enqueueLine(new ConsoleLine($"[{DateTime.Now:HH:mm:ss}] ", levelText, text, levelBrush));
         }
 
         public void Clear()
@@ -80,6 +116,7 @@ namespace ClientRenderer.GUI.ViewModels
             }
 
             stopFlushTimer();
+            ConsoleLines.Clear();
             ConsoleText = string.Empty;
         }
 
@@ -94,11 +131,11 @@ namespace ClientRenderer.GUI.ViewModels
 
             if (Dispatcher.UIThread.CheckAccess())
             {
-                AddLine(text);
+                AddLine(level, text);
                 return;
             }
 
-            Dispatcher.UIThread.Post(() => AddLine(text));
+            Dispatcher.UIThread.Post(() => AddLine(level, text));
         }
 
         private void OnStatusPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -115,7 +152,7 @@ namespace ClientRenderer.GUI.ViewModels
             Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(ConsoleBackground)));
         }
 
-        private void enqueueLine(string line)
+        private void enqueueLine(ConsoleLine line)
         {
             lock (_sync)
             {
@@ -164,12 +201,17 @@ namespace ClientRenderer.GUI.ViewModels
             {
                 while (_pendingLines.Count > 0)
                 {
-                    _lines.Enqueue(_pendingLines.Dequeue());
+                    var line = _pendingLines.Dequeue();
+                    _lines.Enqueue(line);
+                    ConsoleLines.Add(line);
                     hasChanges = true;
                 }
 
                 while (_lines.Count > maxRetainedLines)
+                {
                     _lines.Dequeue();
+                    ConsoleLines.RemoveAt(0);
+                }
 
                 if (!hasChanges)
                 {
@@ -193,9 +235,18 @@ namespace ClientRenderer.GUI.ViewModels
                 if (!first)
                     _consoleBuffer.AppendLine();
 
-                _consoleBuffer.Append(line);
+                _consoleBuffer.Append(line.Timestamp);
+                _consoleBuffer.Append(line.LevelText);
+                _consoleBuffer.Append(line.Message);
                 first = false;
             }
+        }
+
+        private static IBrush? TryGetConsoleBrush(string resourceKey)
+        {
+            return App.Current!.TryGetResource(resourceKey, ThemeVariant.Default, out object? resource)
+                ? resource as IBrush
+                : null;
         }
 
         [RelayCommand]

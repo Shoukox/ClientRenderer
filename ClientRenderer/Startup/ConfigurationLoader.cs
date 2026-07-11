@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
@@ -11,7 +12,8 @@ public sealed class ConfigurationLoader : IConfigurationLoader
     private const string SettingsDirectoryName = "settings";
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
+    
+    private StrongBox<bool> CheckFailed = new  StrongBox<bool>(false);
     public async Task<AppConfiguration> LoadAsync()
     {
         string legacySettingsDirectory = Path.Combine(AppContext.BaseDirectory, SettingsDirectoryName);
@@ -25,11 +27,16 @@ public sealed class ConfigurationLoader : IConfigurationLoader
         {
             await File.WriteAllTextAsync(cookieFile, "INSERT YOUR OSU-SESSION COOKIE HERE");
             Logger.LogWarning($"Created missing osu_session cookie file: {cookieFile}");
-            throw new InvalidOperationException($"Specify your osu_session cookie at {cookieFile}");
+            Logger.LogWarning($"Specify your osu_session cookie at {cookieFile}");
+            CheckFailed.Value = true;
         }
 
-        string osuSessionCookie = (await File.ReadAllTextAsync(cookieFile)).Trim();
-        await ValidateOsuSessionCookie(osuSessionCookie);
+        string osuSessionCookie = string.Empty;
+        if (!CheckFailed.Value)
+        {
+            osuSessionCookie = (await File.ReadAllTextAsync(cookieFile)).Trim();
+            await ValidateOsuSessionCookie(osuSessionCookie); 
+        }
 
         string osuApiConfigFilePath = Path.Combine(settingsDirectory, "osu-api.json");
         var osuApiConfig = await ReadOrCreateJson(
@@ -37,18 +44,33 @@ public sealed class ConfigurationLoader : IConfigurationLoader
             new OsuApiV2Configuration(),
             "Specify your osu api v2 credentials");
 
+        if (osuApiConfig == null)
+        {
+            CheckFailed.Value = true;
+        }
+
         string rendererSettingsFilePath = Path.Combine(settingsDirectory, "renderer-settings.json");
         var rendererCredentials = await ReadOrCreateJson(
             rendererSettingsFilePath,
             new RendererCredentials(),
             "Specify your renderer settings. If you don't have it, contact Shoukko");
 
+        if (rendererCredentials == null)
+        {
+            CheckFailed.Value = true;
+        }
+
+        if (CheckFailed.Value)
+        {
+            throw new InvalidOperationException("Set up the app. Exiting...");
+        }
+        
         return new AppConfiguration
         {
             SettingsDirectory = settingsDirectory,
             OsuSessionCookie = osuSessionCookie,
-            OsuApiV2Configuration = osuApiConfig,
-            RendererCredentials = rendererCredentials
+            OsuApiV2Configuration = osuApiConfig!,
+            RendererCredentials = rendererCredentials!
         };
     }
 
@@ -105,13 +127,14 @@ public sealed class ConfigurationLoader : IConfigurationLoader
         Logger.Log("Your osu_session cookie is OK.");
     }
 
-    private static async Task<T> ReadOrCreateJson<T>(string path, T defaultModel, string setupMessage) where T : class
+    private static async Task<T?> ReadOrCreateJson<T>(string path, T defaultModel, string setupMessage) where T : class
     {
         if (!File.Exists(path))
         {
             await File.WriteAllTextAsync(path, JsonSerializer.Serialize(defaultModel, JsonOptions));
             Logger.LogWarning($"Created missing configuration file: {path}");
-            throw new InvalidOperationException($"{setupMessage} at {path}");
+            Logger.LogWarning($"{setupMessage} at {path}");
+            return null;
         }
 
         var json = await File.ReadAllTextAsync(path);

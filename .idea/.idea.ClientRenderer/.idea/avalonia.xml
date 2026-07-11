@@ -3,6 +3,10 @@
   <component name="AvaloniaProject">
     <option name="projectPerEditor">
       <map>
+        <entry key="ClientRenderer.GUI/Styles/Console.axaml" value="ClientRenderer.GUI/ClientRenderer.GUI.csproj" />
+        <entry key="ClientRenderer.GUI/Styles/Resources/BaseResources.axaml" value="ClientRenderer.GUI/ClientRenderer.GUI.csproj" />
+        <entry key="ClientRenderer.GUI/Styles/Resources/ButtonResources.axaml" value="ClientRenderer.GUI/ClientRenderer.GUI.csproj" />
+        <entry key="ClientRenderer.GUI/Styles/Resources/ConsoleResources.axaml" value="ClientRenderer.GUI/ClientRenderer.GUI.csproj" />
         <entry key="ClientRenderer.GUI/Views/ConsolePageView.axaml" value="ClientRenderer.GUI/ClientRenderer.GUI.csproj" />
       </map>
     </option>
