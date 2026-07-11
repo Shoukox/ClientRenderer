@@ -9,9 +9,12 @@ using DanserWrapper;
 using ExperimentalRendererWrapper;
 using Microsoft.Extensions.DependencyInjection;
 using OsuApi.BanchoV2;
+using SharpCompress.Archives.SevenZip;
+using SharpCompress.Readers;
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -33,6 +36,8 @@ namespace ClientRenderer.GUI.Services
     {
         private const string DanserGoVersion = "0.11.0";
         private const string DanserGoReleaseBaseUrl = "https://github.com/Wieku/danser-go/releases/download/0.11.0";
+        private const string ExperimentalRendererVersion = "0.9.0";
+        private const string ExperimentalRendererReleaseBaseUrl = "https://github.com/Shoukox/osu-replay-viewer-continued/releases/download/0.9.0";
 
         public static RendererService Instance => _instance.Value;
         private static readonly Lazy<RendererService> _instance = new(() => new RendererService());
@@ -276,7 +281,7 @@ namespace ClientRenderer.GUI.Services
 
             ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
             if (!ExperimentalRenderer.ExperimentalRendererExists())
-                throw new InvalidOperationException("Experimental renderer does not exist!");
+                await DownloadAndExtractExperimentalRendererAsync(cancellationToken);
             Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
 
             WindowsGpuPreferenceHelper.SetHighPerformanceForExecutables([
@@ -350,6 +355,134 @@ namespace ClientRenderer.GUI.Services
             }
 
             return $"{DanserGoReleaseBaseUrl}/{archiveName}";
+        }
+
+        private static async Task DownloadAndExtractExperimentalRendererAsync(CancellationToken cancellationToken)
+        {
+            string downloadUrl = GetExperimentalRendererDownloadUrl();
+            string archivePath = Path.Combine(Path.GetTempPath(), $"experimental-renderer-{ExperimentalRendererVersion}-{Guid.NewGuid():N}.7z");
+
+            Logger.LogWarning($"Experimental renderer was not found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+            Logger.Log($"Downloading experimental renderer {ExperimentalRendererVersion} from: {downloadUrl}");
+
+            try
+            {
+                using HttpClient httpClient = new();
+                await using (Stream downloadStream = await httpClient.GetStreamAsync(downloadUrl, cancellationToken))
+                await using (FileStream archiveStream = File.Create(archivePath))
+                {
+                    await downloadStream.CopyToAsync(archiveStream, cancellationToken);
+                }
+
+                Directory.CreateDirectory(ExperimentalRenderer.ExperimentalRendererDirectoryPath);
+                Logger.Log($"Extracting experimental renderer archive to: {ExperimentalRenderer.ExperimentalRendererDirectoryPath}");
+
+                using (var archive = SevenZipArchive.OpenArchive(archivePath, ReaderOptions.ForFilePath))
+                {
+                    foreach (var entry in archive.Entries)
+                    {
+                        string? targetPath = GetExperimentalRendererExtractPath(entry.Key);
+                        if (targetPath == null)
+                            continue;
+
+                        if (entry.IsDirectory)
+                        {
+                            Directory.CreateDirectory(targetPath);
+                            continue;
+                        }
+
+                        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+                        await using Stream entryStream = entry.OpenEntryStream();
+                        await using FileStream outputStream = File.Create(targetPath);
+                        await entryStream.CopyToAsync(outputStream, cancellationToken);
+                    }
+                }
+
+                if (!ExperimentalRenderer.ExperimentalRendererExists())
+                    throw new FileNotFoundException($"Experimental renderer archive was extracted, but the executable was not found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+
+                EnsureExperimentalRendererExecutablePermissions();
+                Logger.Log($"Experimental renderer {ExperimentalRendererVersion} was downloaded and extracted successfully.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to download or extract experimental renderer.");
+                throw;
+            }
+            finally
+            {
+                if (File.Exists(archivePath))
+                    File.Delete(archivePath);
+            }
+        }
+
+        private static string GetExperimentalRendererDownloadUrl()
+        {
+            string archiveName;
+            if (OperatingSystem.IsWindows())
+            {
+                archiveName = "experimental-renderer.win-x64.7z";
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                archiveName = "experimental-renderer.linux-x64.7z";
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("Experimental renderer 0.9.0 only provides Windows x64 and Linux x64 release archives.");
+            }
+
+            return $"{ExperimentalRendererReleaseBaseUrl}/{archiveName}";
+        }
+
+        private static string? GetExperimentalRendererExtractPath(string? entryKey)
+        {
+            if (string.IsNullOrWhiteSpace(entryKey))
+                return null;
+
+            string[] parts = entryKey
+                .Replace('\\', '/')
+                .Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length == 0)
+                return null;
+
+            if (parts[0].Equals("win-x64", StringComparison.OrdinalIgnoreCase) ||
+                parts[0].Equals("linux-x64", StringComparison.OrdinalIgnoreCase))
+            {
+                parts = parts.Skip(1).ToArray();
+            }
+
+            if (parts.Length == 0 || parts.Any(p => p == "." || p == ".."))
+                return null;
+
+            string destinationRoot = Path.GetFullPath(ExperimentalRenderer.ExperimentalRendererDirectoryPath);
+            string destinationPath = Path.GetFullPath(Path.Combine(new[] { destinationRoot }.Concat(parts).ToArray()));
+
+            if (!destinationPath.StartsWith(destinationRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+                !destinationPath.Equals(destinationRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"Experimental renderer archive entry escapes the destination directory: {entryKey}");
+            }
+
+            return destinationPath;
+        }
+
+        private static void EnsureExperimentalRendererExecutablePermissions()
+        {
+            if (!OperatingSystem.IsLinux())
+                return;
+
+            UnixFileMode executableMode =
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+
+            SetExecutableModeIfExists(ExperimentalRenderer.ExperimentalRendererPath, executableMode);
+            SetExecutableModeIfExists(Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "osu-replay-viewer"), executableMode);
+            SetExecutableModeIfExists(Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg"), executableMode);
+            SetExecutableModeIfExists(Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffprobe"), executableMode);
+            SetExecutableModeIfExists(Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, "ffmpeg", "ffplay"), executableMode);
         }
 
         private static void EnsureDanserGoExecutablePermissions()
