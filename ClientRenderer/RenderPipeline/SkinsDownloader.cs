@@ -1,6 +1,7 @@
-﻿using ClientRenderer.Abstractions;
+using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
+using ClientRenderer.Startup;
 using DanserWrapper;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -15,7 +16,7 @@ namespace ClientRenderer.RenderPipeline
             try
             {
                 string skinNameNoOsk = ToStableHash(info.RenderJob.RenderSettings.SkinName[..^4]);
-                string oskPath = Path.Combine(AppContext.BaseDirectory, skinNameNoOsk);
+                string oskPath = Path.Combine(AppStoragePaths.GetDownloadsDirectory("skins"), skinNameNoOsk);
                 info.RenderJob.RenderSettings.Encoder = info.ChosenRenderingEncoder;
                 Logger.Log($"[JobId:{info.RenderJob!.JobId}] Using renderer encoder: {info.ChosenRenderingEncoder}");
                 if (info.RenderJob.RenderSettings.SkinName.EndsWith(".osk"))

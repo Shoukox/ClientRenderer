@@ -3,7 +3,6 @@ using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using System.Text.Json;
-using Velopack.Locators;
 
 namespace ClientRenderer.Startup;
 
@@ -17,7 +16,7 @@ public sealed class ConfigurationLoader : IConfigurationLoader
     public async Task<AppConfiguration> LoadAsync()
     {
         string legacySettingsDirectory = Path.Combine(AppContext.BaseDirectory, SettingsDirectoryName);
-        string settingsDirectory = GetSettingsDirectory();
+        string settingsDirectory = AppStoragePaths.GetSettingsDirectory();
         Directory.CreateDirectory(settingsDirectory);
         Logger.Log($"Using renderer settings directory: {settingsDirectory}");
         MigrateLegacySettingsDirectory(legacySettingsDirectory, settingsDirectory);
@@ -72,14 +71,6 @@ public sealed class ConfigurationLoader : IConfigurationLoader
             OsuApiV2Configuration = osuApiConfig!,
             RendererCredentials = rendererCredentials!
         };
-    }
-
-    private static string GetSettingsDirectory()
-    {
-        if (VelopackLocator.IsCurrentSet && !VelopackLocator.Current.IsPortable && VelopackLocator.Current.RootAppDir is { } rootAppDirectory)
-            return Path.Combine(rootAppDirectory, SettingsDirectoryName);
-
-        return Path.Combine(AppContext.BaseDirectory, SettingsDirectoryName);
     }
 
     private static void MigrateLegacySettingsDirectory(string legacySettingsDirectory, string settingsDirectory)

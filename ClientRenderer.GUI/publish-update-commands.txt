@@ -1,2 +1,1 @@
-dotnet publish -p:PublishProfile=FolderProfile
-vpk pack --packId SosuBot.ClientRenderer --packVersion 2.0.6 --packDir .\bin\Release\net9.0\publish --mainExe ClientRenderer.GUI.exe --msi --instLocation Either
+vpk pack --packId SosuBot.ClientRenderer --packVersion 2.0.9 --packDir .\bin\Release\net9.0\win-x64\publish --mainExe ClientRenderer.GUI.exe

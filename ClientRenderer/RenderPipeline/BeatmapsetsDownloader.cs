@@ -2,6 +2,7 @@ using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
 using ClientRenderer.RenderPipeline.Beatmapsets;
+using ClientRenderer.Startup;
 using DanserWrapper;
 using OsuApi.BanchoV2;
 using System.Collections.Concurrent;
@@ -347,7 +348,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
         Logger.Log($"[JobId:{info.RenderJob!.JobId}] Preparing beatmap files...");
 
         string oszFileName = $"{info.BeatmapHash}.osz";
-        info.BeatmapsetOszPath = Path.Combine(AppContext.BaseDirectory, oszFileName);
+        info.BeatmapsetOszPath = Path.Combine(AppStoragePaths.GetDownloadsDirectory("beatmaps"), oszFileName);
         info.BeatmapsetDirectoryPath = Path.Combine(DanserGo.SongsPath, oszFileName);
         LoadAllBeatmapsHashes();
 

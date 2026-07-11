@@ -2,6 +2,7 @@ using ClientRenderer.Abstractions;
 using ClientRenderer.Helpers;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
+using ClientRenderer.Startup;
 using DanserWrapper;
 using ExperimentalRendererWrapper;
 using System.Collections.Concurrent;
@@ -40,7 +41,7 @@ namespace ClientRenderer.RenderPipeline
 
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Starting rendering.");
 
-            info.VideoPath = Path.Combine(DanserGo.VideosPath, $"{info.BeatmapHash}.mp4");
+            info.VideoPath = Path.Combine(AppStoragePaths.GetVideosDirectory(), $"{info.BeatmapHash}.mp4");
             var renderSuccess = !info.UseExperimentalRenderer
                 ? await RenderWithDanser(info, serverConnection, cancellationToken)
                 : await RenderWithExperimentalRenderer(info, serverConnection, cancellationToken);
@@ -131,7 +132,35 @@ namespace ClientRenderer.RenderPipeline
                 return false;
             }
 
+            try
+            {
+                MoveDanserOutputVideo(info);
+            }
+            catch (Exception ex)
+            {
+                await serverConnection.Failure(info.RenderJob.JobId, "danser", false);
+                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to move rendered danser-go video to the videos directory.");
+                return false;
+            }
+
             return true;
+        }
+
+        private static void MoveDanserOutputVideo(RenderPipelineInfo info)
+        {
+            string danserOutputPath = Path.Combine(DanserGo.VideosPath, Path.GetFileName(info.VideoPath));
+
+            if (Path.GetFullPath(danserOutputPath).Equals(Path.GetFullPath(info.VideoPath), StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (!File.Exists(danserOutputPath))
+                throw new FileNotFoundException($"danser-go completed, but the rendered video was not found at: {danserOutputPath}", danserOutputPath);
+
+            if (File.Exists(info.VideoPath))
+                File.Delete(info.VideoPath);
+
+            File.Move(danserOutputPath, info.VideoPath);
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Rendered video moved to: {info.VideoPath}");
         }
 
         public async Task<bool> RenderWithExperimentalRenderer(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken)

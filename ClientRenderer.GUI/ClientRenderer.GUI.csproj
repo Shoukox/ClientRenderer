@@ -48,4 +48,11 @@
 		<ProjectReference Include="..\DanserWrapper\DanserWrapper.csproj" />
 		<ProjectReference Include="..\ExperimentalRendererWrapper\ExperimentalRendererWrapper.csproj" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <None Include="Assets\default.json">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <TargetPath>default.json</TargetPath>
+	  </None>
+	</ItemGroup>
 </Project>

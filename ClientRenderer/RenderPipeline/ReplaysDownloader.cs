@@ -1,6 +1,7 @@
 using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
+using ClientRenderer.Startup;
 using OsuParsers.Decoders;
 using OsuParsers.Replays;
 
@@ -29,7 +30,7 @@ public class ReplaysDownloader : IReplaysDownloader
             }
 
             info.BeatmapHash = info.DecodedReplay.BeatmapMD5Hash;
-            info.ReplayPath = Path.Combine(AppContext.BaseDirectory, $"{info.BeatmapHash}{info.FileTimeNow}.osr");
+            info.ReplayPath = Path.Combine(AppStoragePaths.GetDownloadsDirectory("replays"), $"{info.BeatmapHash}{info.FileTimeNow}.osr");
             await File.WriteAllBytesAsync(info.ReplayPath, info.ReplayAsBytes);
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Replay saved to: {info.ReplayPath}");
         }

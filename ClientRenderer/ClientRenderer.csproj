@@ -21,4 +21,8 @@
 		<ProjectReference Include="..\DanserWrapper\DanserWrapper.csproj" />
 		<ProjectReference Include="..\ExperimentalRendererWrapper\ExperimentalRendererWrapper.csproj" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="Assets\default.json" />
+	</ItemGroup>
 </Project>
