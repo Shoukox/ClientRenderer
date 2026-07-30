@@ -1,0 +1,220 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sosu! Client Renderer architecture</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f8fafc;
+    --fg: #172033;
+    --muted: #5b6475;
+    --line: #64748b;
+    --neutral: #e2e8f0;
+    --input: #bfdbfe;
+    --process: #c7d2fe;
+    --storage: #99f6e4;
+    --external: #fde68a;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f172a;
+      --fg: #e5e7eb;
+      --muted: #a3adbd;
+      --line: #94a3b8;
+      --neutral: #334155;
+      --input: #1d4ed8;
+      --process: #4338ca;
+      --storage: #0f766e;
+      --external: #92400e;
+    }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font:
+      14px/1.4 ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+  }
+
+  main {
+    max-width: 1200px;
+    margin: 32px auto;
+    padding: 0 20px;
+  }
+
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .title {
+    font-size: 24px;
+    font-weight: 700;
+    fill: var(--fg);
+  }
+
+  .subtitle,
+  .small {
+    font-size: 13px;
+    fill: var(--muted);
+  }
+
+  .zone-title {
+    font-size: 15px;
+    font-weight: 700;
+    fill: var(--fg);
+  }
+
+  .label {
+    font-size: 15px;
+    font-weight: 650;
+    fill: var(--fg);
+  }
+
+  .node {
+    stroke: var(--line);
+    stroke-width: 1.2;
+  }
+
+  .neutral {
+    fill: var(--neutral);
+  }
+
+  .input {
+    fill: var(--input);
+  }
+
+  .process {
+    fill: var(--process);
+  }
+
+  .storage {
+    fill: var(--storage);
+  }
+
+  .external {
+    fill: var(--external);
+  }
+
+  .edge {
+    stroke: var(--line);
+    stroke-width: 1.7;
+    fill: none;
+  }
+
+  .zone {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 1;
+    stroke-dasharray: 7 6;
+    opacity: 0.8;
+  }
+</style>
+<main>
+  <svg viewBox="0 0 1200 690" role="img" aria-labelledby="diagram-title diagram-description">
+    <title id="diagram-title">Sosu! distributed replay-rendering architecture</title>
+    <desc id="diagram-description">
+      A central ASP.NET Core control plane assigns queued osu! replay jobs to a fleet of Client Renderer
+      workers. Workers fetch beatmap assets, render with one of two engines, and upload video results.
+    </desc>
+
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)" />
+      </marker>
+    </defs>
+
+    <text x="30" y="34" class="title">Sosu! distributed replay rendering</text>
+    <text x="30" y="57" class="subtitle">Centralized scheduling, horizontally scalable rendering workers</text>
+
+    <rect x="25" y="85" width="245" height="550" rx="16" class="zone" />
+    <text x="49" y="115" class="zone-title">External systems</text>
+
+    <rect x="300" y="85" width="380" height="550" rx="16" class="zone" />
+    <text x="324" y="115" class="zone-title">Control plane · SosuWeb.Render</text>
+
+    <rect x="710" y="85" width="465" height="550" rx="16" class="zone" />
+    <text x="734" y="115" class="zone-title">Renderer fleet · 1..N machines</text>
+
+    <!-- Connectors are drawn before nodes so arrow lines remain behind boxes. -->
+    <path d="M 245 210 C 285 210, 295 170, 335 170" class="edge" marker-end="url(#arrow)" />
+    <text x="269" y="181" class="small">submit job</text>
+
+    <path d="M 335 218 C 295 218, 285 260, 245 260" class="edge" marker-end="url(#arrow)" />
+    <text x="265" y="247" class="small">result URL</text>
+
+    <path d="M 760 168 C 715 168, 690 168, 645 168" class="edge" marker-end="url(#arrow)" />
+    <text x="655" y="153" class="small">heartbeat · poll</text>
+
+    <path d="M 645 220 C 690 220, 715 220, 760 220" class="edge" marker-end="url(#arrow)" />
+    <text x="680" y="242" class="small">job payload</text>
+
+    <path d="M 420 230 L 420 300" class="edge" marker-end="url(#arrow)" />
+    <path d="M 560 230 L 560 300" class="edge" marker-end="url(#arrow)" />
+    <path d="M 420 485 L 420 400" class="edge" marker-end="url(#arrow)" />
+
+    <path d="M 850 260 L 850 345" class="edge" marker-end="url(#arrow)" />
+    <path d="M 1035 260 L 1035 345" class="edge" marker-end="url(#arrow)" />
+
+    <path d="M 245 500 C 245 675, 650 680, 760 245" class="edge" marker-end="url(#arrow)" />
+    <text x="438" y="675" class="small">validated beatmapset assets</text>
+
+    <path d="M 850 455 L 850 540" class="edge" marker-end="url(#arrow)" />
+    <path d="M 1040 455 L 1040 540" class="edge" marker-end="url(#arrow)" />
+    <text x="883" y="516" class="small">MP4 + thumbnail</text>
+
+    <!-- External nodes -->
+    <rect x="50" y="150" width="195" height="120" rx="12" class="node external" />
+    <text x="147.5" y="199" text-anchor="middle" class="label">Bot / API client</text>
+    <text x="147.5" y="226" text-anchor="middle" class="small">submits and tracks jobs</text>
+
+    <rect x="50" y="430" width="195" height="100" rx="12" class="node external" />
+    <text x="147.5" y="471" text-anchor="middle" class="label">osu! API</text>
+    <text x="147.5" y="496" text-anchor="middle" class="small">Syui · Sayobot · Mino · osu!</text>
+
+    <!-- Control-plane nodes -->
+    <rect x="335" y="140" width="310" height="90" rx="12" class="node process" />
+    <text x="490" y="177" text-anchor="middle" class="label">ASP.NET Core Render API</text>
+    <text x="490" y="202" text-anchor="middle" class="small">JWT · queue · priority scheduling</text>
+
+    <rect x="335" y="300" width="170" height="100" rx="12" class="node storage" />
+    <text x="420" y="342" text-anchor="middle" class="label">PostgreSQL</text>
+    <text x="420" y="367" text-anchor="middle" class="small">jobs · renderer state</text>
+
+    <rect x="520" y="300" width="125" height="100" rx="12" class="node storage" />
+    <text x="582.5" y="338" text-anchor="middle" class="label">Media</text>
+    <text x="582.5" y="363" text-anchor="middle" class="small">replays</text>
+    <text x="582.5" y="383" text-anchor="middle" class="small">videos · thumbs</text>
+
+    <rect x="335" y="485" width="310" height="95" rx="12" class="node neutral" />
+    <text x="490" y="523" text-anchor="middle" class="label">Recovery services</text>
+    <text x="490" y="548" text-anchor="middle" class="small">release offline jobs · detect stuck renders</text>
+
+    <!-- Renderer-fleet nodes -->
+    <rect x="760" y="140" width="365" height="120" rx="12" class="node process" />
+    <text x="942.5" y="181" text-anchor="middle" class="label">ClientRenderer worker</text>
+    <text x="942.5" y="207" text-anchor="middle" class="small">asset cache · pipeline · progress · upload</text>
+    <text x="942.5" y="231" text-anchor="middle" class="small">outbound HTTP only</text>
+
+    <rect x="760" y="345" width="180" height="110" rx="12" class="node input" />
+    <text x="850" y="389" text-anchor="middle" class="label">danser-go</text>
+    <text x="850" y="415" text-anchor="middle" class="small">osu!standard</text>
+
+    <rect x="955" y="345" width="170" height="110" rx="12" class="node input" />
+    <text x="1040" y="382" text-anchor="middle" class="label">Experimental</text>
+    <text x="1040" y="405" text-anchor="middle" class="label">renderer</text>
+    <text x="1040" y="430" text-anchor="middle" class="small">multi-ruleset</text>
+
+    <rect x="760" y="540" width="365" height="65" rx="12" class="node storage" />
+    <text x="942.5" y="568" text-anchor="middle" class="label">Local render output</text>
+    <text x="942.5" y="590" text-anchor="middle" class="small">FFmpeg / FFprobe · GPU or CPU encoder</text>
+  </svg>
+</main>
