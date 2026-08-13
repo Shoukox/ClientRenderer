@@ -1,1 +1,5 @@
-vpk pack --packId SosuBot.ClientRenderer --packVersion 2.0.9 --packDir .\bin\Release\net9.0\win-x64\publish --mainExe ClientRenderer.GUI.exe
+# Preferred local command (PowerShell):
+# powershell -ExecutionPolicy Bypass -File ..\..\scripts\publish-gui-release.ps1 -Version 2.0.10
+#
+# GitHub Actions runs the same script automatically for a commit with subject:
+# release: 2.0.10

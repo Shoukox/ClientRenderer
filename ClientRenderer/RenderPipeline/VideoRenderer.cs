@@ -176,8 +176,10 @@ namespace ClientRenderer.RenderPipeline
                     "-pr",
                     "-R",
                     "--view",
-                    "file",
-                    info.ReplayPath,
+                    info.RenderJob.RenderSettings.UseAutoPlay ? "auto" : "file",
+                    info.RenderJob.RenderSettings.UseAutoPlay
+                        ? (info.BeatmapId ?? throw new InvalidOperationException("Autoplay beatmap id is missing.")).ToString(CultureInfo.InvariantCulture)
+                        : info.ReplayPath,
                     "-osz",
                     info.BeatmapsetOszPath,
                     "--config",
@@ -185,6 +187,28 @@ namespace ClientRenderer.RenderPipeline
                     "-O",
                     info.VideoPath
                 };
+
+                if (info.RenderJob.RenderSettings.UseAutoPlay)
+                {
+                    string[] autoMods = info.RenderJob.RenderSettings.AutoMods ?? [];
+                    if (autoMods.Length > 0)
+                    {
+                        // The renderer replaces the default autoplay mod when an
+                        // override is supplied, so keep Auto (AT) explicitly.
+                        arguments.Add("--mod-override");
+                        arguments.Add("acronyms:AT");
+
+                        foreach (string mod in autoMods
+                            .Where(m => !string.IsNullOrWhiteSpace(m))
+                            .Select(m => m.Trim().ToUpperInvariant())
+                            .Where(m => m != "AT")
+                            .Distinct(StringComparer.OrdinalIgnoreCase))
+                        {
+                            arguments.Add("--mod-override");
+                            arguments.Add($"acronyms:{mod}");
+                        }
+                    }
+                }
 
                 if (info.RenderJob.RenderSettings.SkinName != "default")
                 {
@@ -253,7 +277,7 @@ namespace ClientRenderer.RenderPipeline
 
         public async Task SetVideoDurationInSecondsAsync(RenderPipelineInfo info, CancellationToken cancellationToken, int timeoutMs = 10_000)
         {
-            string ffprobePath = Path.Combine(Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath)!, "ffprobe.exe");
+            string ffprobePath = ExperimentalRenderer.FfprobePath;
             ProcessStartInfo psi = new ProcessStartInfo
             {
                 FileName = ffprobePath,
@@ -271,16 +295,19 @@ namespace ClientRenderer.RenderPipeline
             psi.ArgumentList.Add("json");
             psi.ArgumentList.Add(info.VideoPath);
 
-            using var process = Process.Start(psi)
-                ?? throw new InvalidOperationException("Could not start ffprobe.");
+            using var process = new Process { StartInfo = psi };
+            bool processStarted = false;
 
-            string output = await process.StandardOutput.ReadToEndAsync();
-            string error = await process.StandardError.ReadToEndAsync();
-
-            using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
-            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             try
             {
+                process.Start();
+                processStarted = true;
+
+                string output = await process.StandardOutput.ReadToEndAsync();
+                string error = await process.StandardError.ReadToEndAsync();
+
+                using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
+                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
                 await process.WaitForExitAsync(linkedCts.Token);
 
                 if (process.ExitCode != 0)
@@ -302,7 +329,7 @@ namespace ClientRenderer.RenderPipeline
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                if (!process.HasExited)
+                if (processStarted && !process.HasExited)
                     process.Kill(true);
 
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to calculate video duration. Operation was canceled.");
@@ -310,7 +337,7 @@ namespace ClientRenderer.RenderPipeline
             }
             catch (Exception ex)
             {
-                if (!process.HasExited)
+                if (processStarted && !process.HasExited)
                     process.Kill(true);
 
                 Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to calculate video duration. Skipping duration update.");

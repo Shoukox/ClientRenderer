@@ -183,7 +183,7 @@ namespace ClientRenderer.GUI
                     ? await messageBox.ShowWindowDialogAsync(desktop.MainWindow!)
                     : await messageBox.ShowAsync();
 
-                if (result != ButtonResult.Yes)
+                if (result == ButtonResult.Yes)
                     return true;
             }
 

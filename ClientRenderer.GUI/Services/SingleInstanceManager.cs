@@ -3,7 +3,6 @@ using ClientRenderer.Logging;
 using System;
 using System.IO;
 using System.IO.Pipes;
-using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -29,8 +28,12 @@ namespace ClientRenderer.GUI.Services
                 throw new ArgumentException("Application id cannot be null or empty.", nameof(appId));
 
             string instanceKey = createInstanceKey(appId);
-            _mutexName = $"Local\\{instanceKey}";
+
+            // "Local\" is a Windows kernel-object-namespace prefix; it has no meaning
+            // on Unix, so only apply it when actually running on Windows.
+            _mutexName = OperatingSystem.IsWindows() ? $"Local\\{instanceKey}" : instanceKey;
             _pipeName = instanceKey;
+
             _mutex = new Mutex(true, _mutexName, out bool createdNew);
             IsPrimaryInstance = createdNew;
             Logger.Log($"Single-instance manager initialized. Primary instance: {IsPrimaryInstance}.");
@@ -72,7 +75,6 @@ namespace ClientRenderer.GUI.Services
             }
         }
 
-        [SupportedOSPlatform("windows")]
         public bool SignalPrimaryInstance(TimeSpan timeout)
         {
             using NamedPipeClientStream client = new NamedPipeClientStream(".", _pipeName, PipeDirection.Out, PipeOptions.None);
@@ -91,11 +93,13 @@ namespace ClientRenderer.GUI.Services
             {
                 try
                 {
+                    // PipeTransmissionMode.Message is Windows-only; the Unix named-pipe
+                    // implementation only supports Byte mode, so use that everywhere.
                     using NamedPipeServerStream server = new NamedPipeServerStream(
                         _pipeName,
                         PipeDirection.In,
                         1,
-                        PipeTransmissionMode.Message,
+                        PipeTransmissionMode.Byte,
                         PipeOptions.Asynchronous);
 
                     await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -151,8 +155,14 @@ namespace ClientRenderer.GUI.Services
         {
             string userScope = Environment.UserDomainName + "\\" + Environment.UserName;
             string raw = appId + "|" + userScope;
+
+            // Truncate the hash to keep the resulting name short: on Linux, named
+            // pipes are backed by a Unix domain socket file, and socket paths have
+            // a ~108-byte OS limit (sun_path). A shorter, still-unique name keeps
+            // us well clear of that limit even once combined with a temp path.
             byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
-            return "ClientRenderer_" + Convert.ToHexString(hash);
+            string shortHash = Convert.ToHexString(hash, 0, 8); // 16 hex chars
+            return "cr-" + shortHash;
         }
 
         public void Dispose()

@@ -5,7 +5,12 @@ using ClientRenderer.Models;
 
 namespace ClientRenderer.Startup;
 
-public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection serverConnection, string chosenEncoder, IAutomaticUpdateService? automaticUpdateService = null) : IRenderWorker
+public sealed class RenderWorker(
+    IVideoRenderer videoRenderer,
+    IServerConnection serverConnection,
+    string chosenEncoder,
+    IAutomaticUpdateService? automaticUpdateService = null,
+    Func<CancellationToken, Task>? dependencyUpdateAsync = null) : IRenderWorker
 {
     public event Action<bool>? RenderingStatus;
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(1);
@@ -70,7 +75,8 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                 info = new RenderPipelineInfo
                 {
                     RenderJob = renderJob,
-                    UseExperimentalRenderer = renderJob.RenderSettings.UseExperimentalRenderer,
+                    UseExperimentalRenderer = renderJob.RenderSettings.UseExperimentalRenderer ||
+                                              renderJob.RenderSettings.UseAutoPlay,
                     ChosenRenderingEncoder = chosenEncoder
                 };
 
@@ -80,7 +86,10 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                 RenderingStatus?.Invoke(true);
                 try
                 {
-                    WindowsSleepPreventerHelper.PreventSleepAndDisplayOff();
+                    if (OperatingSystem.IsWindows())
+                    {
+                        WindowsSleepPreventerHelper.PreventSleepAndDisplayOff();
+                    }
                     await videoRenderer.RenderVideo(info, serverConnection, renderCancellationTokenSource.Token);
                 }
                 finally
@@ -95,7 +104,11 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
                         Logger.Log($"[JobId:{renderJob.JobId}] Render cancellation monitor stopped.");
                     }
 
-                    WindowsSleepPreventerHelper.AllowSleep();
+                    if (OperatingSystem.IsWindows())
+                    {
+                        WindowsSleepPreventerHelper.AllowSleep();
+                    }
+
                     RenderingStatus?.Invoke(false);
                 }
             }
@@ -150,11 +163,16 @@ public sealed class RenderWorker(IVideoRenderer videoRenderer, IServerConnection
 
     private async Task CheckForUpdatesIfDueAsync(CancellationToken cancellationToken)
     {
-        if (automaticUpdateService == null || DateTimeOffset.UtcNow < _nextUpdateCheckAt)
+        if ((automaticUpdateService == null && dependencyUpdateAsync == null) ||
+            DateTimeOffset.UtcNow < _nextUpdateCheckAt)
             return;
 
         _nextUpdateCheckAt = DateTimeOffset.UtcNow + UpdateCheckInterval;
         Logger.Log("Checking for updates before polling for another render job.");
-        await automaticUpdateService.CheckForUpdatesAsync(cancellationToken);
+        if (automaticUpdateService != null)
+            await automaticUpdateService.CheckForUpdatesAsync(cancellationToken);
+
+        if (dependencyUpdateAsync != null)
+            await dependencyUpdateAsync(cancellationToken);
     }
 }

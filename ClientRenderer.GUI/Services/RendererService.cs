@@ -11,11 +11,14 @@ using Microsoft.Extensions.DependencyInjection;
 using OsuApi.BanchoV2;
 using System;
 using System.Diagnostics;
+using System.Formats.Tar;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.Versioning;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -35,10 +38,20 @@ namespace ClientRenderer.GUI.Services
     {
         private const string DanserGoVersion = "0.11.0";
         private const string DanserGoReleaseBaseUrl = "https://github.com/Wieku/danser-go/releases/download/0.11.0";
-        private const string ExperimentalRendererVersion = "0.9.0";
+        // This is the version used by older ClientRenderer builds that did not
+        // write a local dependency marker. It lets the first run of this
+        // updater detect a newer experimental-renderer release.
+        private const string ExperimentalRendererLegacyInstalledVersion = "0.9.0";
+        private const string ExperimentalRendererFallbackVersion = "0.9.1";
+        private const string ExperimentalRendererFallbackReleaseBaseUrl =
+            "https://github.com/Shoukox/osu-replay-viewer-continued/releases/download/v0.9.1";
+        private const string ExperimentalRendererLatestReleaseApiUrl =
+            "https://api.github.com/repos/Shoukox/osu-replay-viewer-continued/releases/latest";
+        private const string ExperimentalRendererVersionFileName = ".renderer-version";
+        private static readonly Regex ExperimentalRendererVersionRegex =
+            new("^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$", RegexOptions.Compiled);
 
-        private const string ExperimentalRendererReleaseBaseUrl =
-            "https://github.com/Shoukox/osu-replay-viewer-continued/releases/download/0.9.0";
+        private sealed record ExperimentalRendererRelease(string Version, string DownloadUrl, string AssetName);
 
         public static RendererService Instance => _instance.Value;
         private static readonly Lazy<RendererService> _instance = new(() => new RendererService());
@@ -162,7 +175,8 @@ namespace ClientRenderer.GUI.Services
                         sp.GetRequiredService<IVideoRenderer>(),
                         sp.GetRequiredService<IServerConnection>(),
                         encoder,
-                        sp.GetRequiredService<IAutomaticUpdateService>()))
+                        sp.GetRequiredService<IAutomaticUpdateService>(),
+                        EnsureExperimentalRendererUpToDateAsync))
                     .BuildServiceProvider();
 
                 Logger.Log("osu! api v2 credentials loaded. They will be validated on the first real API request.");
@@ -289,9 +303,7 @@ namespace ClientRenderer.GUI.Services
             DanserGo.AdjustOsuApiCredentials(osuClientId, osuClientSecret);
 
             ExperimentalRenderer.AdjustExperimentalRendererPath(Environment.OSVersion);
-            if (!ExperimentalRenderer.ExperimentalRendererExists())
-                await DownloadAndExtractExperimentalRendererAsync(cancellationToken);
-            Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+            await EnsureExperimentalRendererUpToDateAsync(cancellationToken);
 
             if (OperatingSystem.IsWindows())
             {
@@ -537,74 +549,319 @@ namespace ClientRenderer.GUI.Services
             }
         }
 
-        private static async Task DownloadAndExtractExperimentalRendererAsync(CancellationToken cancellationToken)
+        private static async Task EnsureExperimentalRendererUpToDateAsync(CancellationToken cancellationToken)
         {
-            if (Directory.Exists(ExperimentalRenderer.ExperimentalRendererDirectoryPath))
+            bool rendererExists = ExperimentalRenderer.ExperimentalRendererExists();
+            ExperimentalRendererRelease release;
+
+            try
             {
-                Directory.Delete(ExperimentalRenderer.ExperimentalRendererDirectoryPath, true);
+                release = await GetLatestExperimentalRendererReleaseAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                if (rendererExists)
+                {
+                    Logger.LogWarning(
+                        $"Could not check the latest experimental renderer release; keeping the installed copy. {ex.Message}");
+                    Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+                    return;
+                }
+
+                // Preserve first-run behaviour if GitHub's API is temporarily
+                // unavailable. The pinned fallback asset is still available.
+                Logger.LogWarning(
+                    $"Could not query the latest experimental renderer release; trying the fallback {ExperimentalRendererFallbackVersion} asset. {ex.Message}");
+                release = GetFallbackExperimentalRendererRelease();
             }
 
-            string downloadUrl = GetExperimentalRendererDownloadUrl();
-            string archivePath = Path.Combine(Path.GetTempPath(),
-                $"experimental-renderer-{ExperimentalRendererVersion}-{Guid.NewGuid():N}.zip");
+            string? installedVersion = ReadInstalledExperimentalRendererVersion();
+            if (rendererExists && installedVersion == null)
+            {
+                // Builds before the updater existed always downloaded this
+                // exact version, so an absent marker is safely migratable.
+                installedVersion = ExperimentalRendererLegacyInstalledVersion;
+            }
 
-            Logger.LogWarning(
-                $"Experimental renderer was not found at: {ExperimentalRenderer.ExperimentalRendererPath}");
-            Logger.Log($"Downloading experimental renderer {ExperimentalRendererVersion} from: {downloadUrl}");
+            if (rendererExists && string.Equals(installedVersion, release.Version, StringComparison.OrdinalIgnoreCase))
+            {
+                WriteInstalledExperimentalRendererVersion(release.Version);
+                Logger.Log(
+                    $"Experimental renderer {release.Version} is already installed at: {ExperimentalRenderer.ExperimentalRendererPath}");
+                return;
+            }
+
+            if (rendererExists)
+            {
+                Logger.Log(
+                    $"Updating experimental renderer from {installedVersion ?? "unknown"} to {release.Version}.");
+            }
+            else
+            {
+                Logger.LogWarning(
+                    $"Experimental renderer was not found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+            }
+
+            try
+            {
+                await DownloadAndExtractExperimentalRendererAsync(release, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (rendererExists)
+            {
+                Logger.LogWarning(
+                    $"Could not update the experimental renderer; keeping the installed copy. {ex.Message}");
+                Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+                return;
+            }
+            Logger.Log($"Experimental renderer executable found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+        }
+
+        private static async Task<ExperimentalRendererRelease> GetLatestExperimentalRendererReleaseAsync(
+            CancellationToken cancellationToken)
+        {
+            string runtimeIdentifier = GetExperimentalRendererRuntimeIdentifier();
+
+            using HttpClient httpClient = new();
+            httpClient.Timeout = TimeSpan.FromSeconds(15);
+            httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("SosuBot.ClientRenderer");
+
+            using HttpResponseMessage response = await httpClient.GetAsync(
+                ExperimentalRendererLatestReleaseApiUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            await using Stream responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using JsonDocument document = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
+
+            JsonElement root = document.RootElement;
+            string version = NormalizeExperimentalRendererVersion(root.GetProperty("tag_name").GetString() ?? string.Empty);
+
+            foreach (JsonElement asset in root.GetProperty("assets").EnumerateArray())
+            {
+                string assetName = asset.GetProperty("name").GetString() ?? string.Empty;
+                if (!IsSupportedExperimentalRendererAsset(assetName, runtimeIdentifier))
+                    continue;
+
+                string downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(downloadUrl))
+                    continue;
+
+                return new ExperimentalRendererRelease(version, downloadUrl, assetName);
+            }
+
+            throw new InvalidDataException(
+                $"The experimental renderer release {version} has no {runtimeIdentifier} asset.");
+        }
+
+        private static bool IsSupportedExperimentalRendererAsset(string assetName, string runtimeIdentifier)
+        {
+            if (assetName.Equals($"experimental-renderer.{runtimeIdentifier}.zip", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (!assetName.StartsWith("osu-replay-viewer-", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return assetName.EndsWith($"-{runtimeIdentifier}.zip", StringComparison.OrdinalIgnoreCase) ||
+                   (runtimeIdentifier == "linux-x64" &&
+                    assetName.EndsWith($"-{runtimeIdentifier}.tar.gz", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string GetExperimentalRendererRuntimeIdentifier()
+        {
+            if (OperatingSystem.IsWindows())
+                return "win-x64";
+
+            if (OperatingSystem.IsLinux())
+                return "linux-x64";
+
+            throw new PlatformNotSupportedException(
+                "The experimental renderer currently provides Windows x64 and Linux x64 release archives.");
+        }
+
+        private static ExperimentalRendererRelease GetFallbackExperimentalRendererRelease()
+        {
+            string runtimeIdentifier = GetExperimentalRendererRuntimeIdentifier();
+            string assetName = runtimeIdentifier switch
+            {
+                "win-x64" => $"osu-replay-viewer-v{ExperimentalRendererFallbackVersion}-win-x64.zip",
+                "linux-x64" => $"osu-replay-viewer-v{ExperimentalRendererFallbackVersion}-linux-x64.tar.gz",
+                _ => throw new PlatformNotSupportedException(
+                    $"The experimental renderer fallback does not provide an archive for {runtimeIdentifier}.")
+            };
+            string downloadUrl = $"{ExperimentalRendererFallbackReleaseBaseUrl}/{assetName}";
+            return new ExperimentalRendererRelease(ExperimentalRendererFallbackVersion, downloadUrl, assetName);
+        }
+
+        private static string? ReadInstalledExperimentalRendererVersion()
+        {
+            string versionPath = Path.Combine(
+                ExperimentalRenderer.ExperimentalRendererDirectoryPath,
+                ExperimentalRendererVersionFileName);
+
+            if (!File.Exists(versionPath))
+                return null;
+
+            try
+            {
+                return NormalizeExperimentalRendererVersion(File.ReadAllText(versionPath));
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"Ignoring invalid experimental renderer version marker: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static string NormalizeExperimentalRendererVersion(string version)
+        {
+            string normalized = version.Trim();
+            if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                normalized = normalized[1..];
+
+            if (!ExperimentalRendererVersionRegex.IsMatch(normalized))
+                throw new InvalidDataException($"Invalid experimental renderer version '{version}'.");
+
+            return normalized;
+        }
+
+        private static void WriteInstalledExperimentalRendererVersion(string version)
+        {
+            Directory.CreateDirectory(ExperimentalRenderer.ExperimentalRendererDirectoryPath);
+            File.WriteAllText(
+                Path.Combine(ExperimentalRenderer.ExperimentalRendererDirectoryPath, ExperimentalRendererVersionFileName),
+                version + Environment.NewLine);
+        }
+
+        private static async Task DownloadAndExtractExperimentalRendererAsync(
+            ExperimentalRendererRelease release,
+            CancellationToken cancellationToken)
+        {
+            string archiveExtension = release.AssetName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase)
+                ? ".tar.gz"
+                : ".zip";
+            string archivePath = Path.Combine(
+                Path.GetTempPath(),
+                $"experimental-renderer-{release.Version}-{Guid.NewGuid():N}{archiveExtension}");
+            string extractionDirectoryPath = Path.Combine(
+                Path.GetTempPath(),
+                $"experimental-renderer-extract-{Guid.NewGuid():N}");
+            string installDirectoryPath = Path.Combine(
+                Path.GetTempPath(),
+                $"experimental-renderer-install-{Guid.NewGuid():N}");
+
+            Logger.Log($"Downloading experimental renderer {release.Version} from: {release.DownloadUrl}");
 
             try
             {
                 using HttpClient httpClient = new();
-                await DownloadFileWithProgressAsync(httpClient, downloadUrl, archivePath, "experimental renderer",
-                    cancellationToken);
+                await DownloadFileWithProgressAsync(httpClient, release.DownloadUrl, archivePath,
+                    "experimental renderer", cancellationToken);
 
-                Directory.CreateDirectory(ExperimentalRenderer.ExperimentalRendererDirectoryPath);
-                Logger.Log(
-                    $"Extracting experimental renderer archive to: {ExperimentalRenderer.ExperimentalRendererDirectoryPath}");
-                ExtractExperimentalRendererArchive(archivePath, cancellationToken);
+                ExtractExperimentalRendererArchive(archivePath, extractionDirectoryPath, cancellationToken);
+                string sourceDirectoryPath = GetExperimentalRendererStagingSourceDirectory(extractionDirectoryPath);
 
-                if (!ExperimentalRenderer.ExperimentalRendererExists())
+                CopyDirectoryContents(sourceDirectoryPath, installDirectoryPath);
+                string expectedExecutable = Path.Combine(
+                    installDirectoryPath,
+                    Path.GetFileName(ExperimentalRenderer.ExperimentalRendererPath));
+                if (!File.Exists(expectedExecutable))
+                {
                     throw new FileNotFoundException(
-                        $"Experimental renderer archive was extracted, but the executable was not found at: {ExperimentalRenderer.ExperimentalRendererPath}");
+                        $"Experimental renderer archive was extracted, but the executable was not found at: {expectedExecutable}");
+                }
 
+                ReplaceExperimentalRendererDirectory(installDirectoryPath);
+                WriteInstalledExperimentalRendererVersion(release.Version);
                 EnsureExperimentalRendererExecutablePermissions();
                 Logger.Log(
-                    $"Experimental renderer {ExperimentalRendererVersion} was downloaded and extracted successfully.");
+                    $"Experimental renderer {release.Version} was downloaded and extracted successfully.");
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Failed to download or extract experimental renderer.");
+                Logger.LogError(ex, $"Failed to download or extract experimental renderer {release.Version}.");
                 throw;
             }
             finally
             {
                 if (File.Exists(archivePath))
                     File.Delete(archivePath);
+                if (Directory.Exists(extractionDirectoryPath))
+                    Directory.Delete(extractionDirectoryPath, true);
+                if (Directory.Exists(installDirectoryPath))
+                    Directory.Delete(installDirectoryPath, true);
             }
         }
 
-        private static void ExtractExperimentalRendererArchive(string archivePath, CancellationToken cancellationToken)
+        private static void ExtractExperimentalRendererArchive(
+            string archivePath,
+            string stagingDirectoryPath,
+            CancellationToken cancellationToken)
         {
-            string stagingDirectoryPath =
-                Path.Combine(Path.GetTempPath(), $"experimental-renderer-extract-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(stagingDirectoryPath);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (archivePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+            {
+                using FileStream archiveStream = File.OpenRead(archivePath);
+                using GZipStream gzipStream = new(archiveStream, CompressionMode.Decompress);
+                TarFile.ExtractToDirectory(gzipStream, stagingDirectoryPath, overwriteFiles: true);
+            }
+            else
+            {
+                ZipFile.ExtractToDirectory(archivePath, stagingDirectoryPath, overwriteFiles: true);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        private static void ReplaceExperimentalRendererDirectory(string stagedDirectoryPath)
+        {
+            string targetDirectoryPath = ExperimentalRenderer.ExperimentalRendererDirectoryPath;
+            string backupDirectoryPath = targetDirectoryPath + $".backup-{Guid.NewGuid():N}";
+            bool movedExistingDirectory = false;
 
             try
             {
-                Directory.CreateDirectory(stagingDirectoryPath);
+                if (Directory.Exists(targetDirectoryPath))
+                {
+                    Directory.Move(targetDirectoryPath, backupDirectoryPath);
+                    movedExistingDirectory = true;
+                }
 
-                cancellationToken.ThrowIfCancellationRequested();
-                ZipFile.ExtractToDirectory(archivePath, stagingDirectoryPath, overwriteFiles: true);
-                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    Directory.Move(stagedDirectoryPath, targetDirectoryPath);
+                }
+                catch (IOException)
+                {
+                    // Temp and application directories can be on different
+                    // volumes. Copying is the portable fallback.
+                    CopyDirectoryContents(stagedDirectoryPath, targetDirectoryPath);
+                    Directory.Delete(stagedDirectoryPath, true);
+                }
 
-                string sourceDirectoryPath = GetExperimentalRendererStagingSourceDirectory(stagingDirectoryPath);
-                CopyDirectoryContents(sourceDirectoryPath, ExperimentalRenderer.ExperimentalRendererDirectoryPath);
-                Logger.Log(
-                    $"Experimental renderer archive extracted successfully. Files copied from: {sourceDirectoryPath}");
+                if (movedExistingDirectory && Directory.Exists(backupDirectoryPath))
+                    Directory.Delete(backupDirectoryPath, true);
             }
-            finally
+            catch
             {
-                if (Directory.Exists(stagingDirectoryPath))
-                    Directory.Delete(stagingDirectoryPath, true);
+                if (Directory.Exists(targetDirectoryPath))
+                    Directory.Delete(targetDirectoryPath, true);
+
+                if (movedExistingDirectory && Directory.Exists(backupDirectoryPath))
+                    Directory.Move(backupDirectoryPath, targetDirectoryPath);
+
+                throw;
             }
         }
 
@@ -650,26 +907,6 @@ namespace ClientRenderer.GUI.Services
                 Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
                 File.Copy(filePath, destinationPath, overwrite: true);
             }
-        }
-
-        private static string GetExperimentalRendererDownloadUrl()
-        {
-            string archiveName;
-            if (OperatingSystem.IsWindows())
-            {
-                archiveName = "experimental-renderer.win-x64.zip";
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                archiveName = "experimental-renderer.linux-x64.zip";
-            }
-            else
-            {
-                throw new PlatformNotSupportedException(
-                    "Experimental renderer 0.9.0 only provides Windows x64 and Linux x64 release archives.");
-            }
-
-            return $"{ExperimentalRendererReleaseBaseUrl}/{archiveName}";
         }
 
         private static void EnsureExperimentalRendererExecutablePermissions()

@@ -11,7 +11,9 @@ namespace ExperimentalRendererWrapper
     {
         public static string ExperimentalRendererPath = Path.Combine(AppContext.BaseDirectory, "experimental-renderer", "osu-replay-viewer");
         public readonly static string ExperimentalRendererDirectoryPath = Path.GetDirectoryName(ExperimentalRendererPath)!;
-        public readonly static string FfmpegPath = Path.Combine(ExperimentalRendererDirectoryPath, "ffmpeg", "ffmpeg.exe");
+        public static string FfmpegDirectoryPath => Path.Combine(ExperimentalRendererDirectoryPath, "ffmpeg");
+        public static string FfmpegPath => ResolveToolPath("ffmpeg");
+        public static string FfprobePath => ResolveToolPath("ffprobe");
         public readonly static string ConfigPath = Path.Combine(ExperimentalRendererDirectoryPath, "orv_config.json");
 
         public static async Task<ExperimentalRendererResult> ExecuteAsync(IEnumerable<string> args, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
@@ -74,7 +76,6 @@ namespace ExperimentalRendererWrapper
             };
 
             process.Start();
-            process.PriorityClass = ProcessPriorityClass.High;
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
@@ -113,6 +114,19 @@ namespace ExperimentalRendererWrapper
         }
 
         public static bool ExperimentalRendererExists() => File.Exists(ExperimentalRendererPath);
+
+        private static string ResolveToolPath(string toolName)
+        {
+            string executableName = OperatingSystem.IsWindows() ? $"{toolName}.exe" : toolName;
+            string bundledPath = Path.Combine(FfmpegDirectoryPath, executableName);
+
+            // Windows releases normally contain FFmpeg in the renderer
+            // directory. Linux releases may rely on the system FFmpeg, so
+            // let Process resolve the bare executable name through PATH when
+            // no bundled binary is present.
+            return File.Exists(bundledPath) ? bundledPath : executableName;
+        }
+
         public static void AdjustExperimentalRendererPath(OperatingSystem operatingSystem)
         {
             if (operatingSystem.Platform == PlatformID.Win32NT)

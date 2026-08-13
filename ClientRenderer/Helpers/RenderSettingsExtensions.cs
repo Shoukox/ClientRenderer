@@ -50,7 +50,7 @@ namespace ClientRenderer.Helpers
                 FFmpegOptions = new FFmpegOptionsObject
                 {
                     Mode = "Pipe",
-                    LibrariesPath = Path.GetDirectoryName(ExperimentalRenderer.FfmpegPath)!,
+                    LibrariesPath = ExperimentalRenderer.FfmpegDirectoryPath,
                     Executable = ExperimentalRenderer.FfmpegPath,
                     VideoEncoder = renderSettings.Encoder,
                     VideoEncoderPreset = MapExperimentalEncoderPreset(renderSettings.Encoder),

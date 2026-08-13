@@ -12,7 +12,7 @@ namespace ClientRenderer.RenderPipeline
         private string FfmpegPath => ExperimentalRenderer.FfmpegPath;
         public async Task<bool> RenderThumbnail(RenderPipelineInfo info, IServerConnection serverConnection, CancellationToken cancellationToken, int timeoutMs = 10_000)
         {
-            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Generating a thumbnail...");
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Generating a thumbnail with '{FfmpegPath}'...");
             string thumbnailPath = Path.Combine(DanserGo.ScreenshotsPath, $"{info.BeatmapHash}.jpg");
             ProcessStartInfo processStartInfo = new ProcessStartInfo
             {
@@ -25,12 +25,15 @@ namespace ClientRenderer.RenderPipeline
             };
 
             using Process process = new Process { StartInfo = processStartInfo };
-            process.Start();
-            using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
-            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            bool processStarted = false;
 
             try
             {
+                process.Start();
+                processStarted = true;
+
+                using CancellationTokenSource timeoutCts = new CancellationTokenSource(timeoutMs);
+                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
                 await process.WaitForExitAsync(linkedCts.Token);
                 bool success = process.ExitCode == 0;
                 if (success)
@@ -49,7 +52,7 @@ namespace ClientRenderer.RenderPipeline
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                if (!process.HasExited)
+                if (processStarted && !process.HasExited)
                     process.Kill(true);
 
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Failed to render or upload thumbnail. Operation was canceled.");
@@ -57,7 +60,7 @@ namespace ClientRenderer.RenderPipeline
             }
             catch (Exception ex)
             {
-                if (!process.HasExited)
+                if (processStarted && !process.HasExited)
                     process.Kill(true);
 
                 Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to render or upload thumbnail. Skipping thumbnail.");

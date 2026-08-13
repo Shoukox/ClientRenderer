@@ -9,6 +9,7 @@ namespace ClientRenderer.Models
         public Replay DecodedReplay { get; set; } = default!;
         public byte[] ReplayAsBytes { get; set; } = default!;
         public string ChosenRenderingEncoder { get; set; } = default!;
+        public int? BeatmapId { get; set; }
         public int? BeatmapLength { get; set; } = null;
         public string BeatmapHash { get; set; } = default!;
         public string ReplayPath { get; set; } = default!;

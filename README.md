@@ -119,7 +119,7 @@ The worker core is UI-agnostic: both hosts compose the same downloader, connecti
 - renderer OAuth credentials issued by `SosuWeb.Render`
 - an NVIDIA encoder (`h264_nvenc` or `av1_nvenc`) or `libx264` for CPU encoding
 
-The GUI downloads supported danser-go and experimental-renderer binaries on first launch when they are not already present.
+The GUI downloads supported danser-go and experimental-renderer binaries when they are missing. At startup, and then at most once per hour before polling for another job, it checks the latest `osu-replay-viewer-continued` release and replaces an older experimental renderer automatically. If GitHub is temporarily unavailable, an already installed renderer is kept and used.
 
 ### Build from source
 
@@ -131,6 +131,33 @@ dotnet restore ClientRenderer.slnx
 dotnet build ClientRenderer.slnx --configuration Release
 dotnet run --project ClientRenderer.GUI/ClientRenderer.GUI.csproj
 ```
+
+### Automated GUI releases
+
+The GUI release is built by GitHub Actions. Ordinary commits do not publish
+anything. To release version `2.0.10`, create a commit with this subject and
+push it to the `avalonia` branch:
+
+```bash
+git commit -m "release: 2.0.10"
+git push origin avalonia
+```
+
+The workflow publishes the Windows Velopack assets (`RELEASES`, `.nupkg`,
+installer and checksums) and creates the `2.0.10` GitHub Release. The same
+process can be started manually from **Actions → Build and publish
+ClientRenderer GUI → Run workflow** by entering a version.
+
+For a local release, install the Velopack CLI once and run:
+
+```powershell
+dotnet tool install --global vpk --version 1.2.0
+powershell -ExecutionPolicy Bypass -File .\scripts\publish-gui-release.ps1 -Version 2.0.10
+```
+
+The old commands in `ClientRenderer.GUI/publish-update-commands.txt` are kept
+as a pointer to this script; uploading the generated files through the GitHub
+website is no longer required.
 
 On first launch, the worker creates the missing files in its `settings` directory and exits until they are populated:
 
