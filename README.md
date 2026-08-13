@@ -168,7 +168,12 @@ The old commands in `ClientRenderer.GUI/publish-update-commands.txt` are kept
 as a pointer to this script; uploading the generated files through the GitHub
 website is no longer required.
 
-On first launch, the worker creates the missing files in its `settings` directory and exits until they are populated:
+On first launch, the worker creates the missing files in its `settings`
+directory and exits until they are populated.
+
+On Linux/AppImage, this directory is stored at
+`~/.local/share/ClientRenderer/settings`; the AppImage itself is mounted
+read-only.
 
 ```text
 settings/

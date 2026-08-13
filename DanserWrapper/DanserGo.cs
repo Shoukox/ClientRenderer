@@ -8,11 +8,33 @@ namespace DanserWrapper;
 
 public static class DanserGo
 {
-    public static string DanserGoPath = Path.Combine(AppContext.BaseDirectory, "danser", "danser-cli");
+    private const string ApplicationName = "ClientRenderer";
+
+    public static string DanserGoPath = Path.Combine(GetApplicationRootDirectory(), "danser", "danser-cli");
     public readonly static string DanserGoDirectoryPath = Path.GetDirectoryName(DanserGoPath)!;
     public readonly static string VideosPath = Path.Combine(DanserGoDirectoryPath, "videos");
     public readonly static string ScreenshotsPath = Path.Combine(DanserGoDirectoryPath, "screenshots");
     public readonly static string SongsPath = Path.Combine(DanserGoDirectoryPath, "songs");
+
+    private static string GetApplicationRootDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+            return AppContext.BaseDirectory;
+
+        string? xdgDataHome = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        if (!string.IsNullOrWhiteSpace(xdgDataHome))
+            return Path.Combine(xdgDataHome, ApplicationName);
+
+        string localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localApplicationData))
+            return Path.Combine(localApplicationData, ApplicationName);
+
+        string? homeDirectory = Environment.GetEnvironmentVariable("HOME");
+        if (!string.IsNullOrWhiteSpace(homeDirectory))
+            return Path.Combine(homeDirectory, ".local", "share", ApplicationName);
+
+        return Path.Combine(Path.GetTempPath(), ApplicationName);
+    }
 
     public static async Task<DanserResult> ExecuteAsync(IEnumerable<string> args, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
     {

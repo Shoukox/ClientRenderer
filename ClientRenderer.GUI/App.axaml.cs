@@ -5,6 +5,7 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using ClientRenderer.GUI.Configuration;
+using ClientRenderer.Startup;
 using ClientRenderer.GUI.Services;
 using ClientRenderer.GUI.Services.Localization;
 using ClientRenderer.GUI.ViewModels;
@@ -28,7 +29,7 @@ namespace ClientRenderer.GUI
         internal static SingleInstanceManager? SingleInstance { get; set; }
 
         public static AppSettingsProvider SettingsProvider { get; } = new(
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClientRenderer"));
+            AppStoragePaths.GetUserApplicationDataDirectory());
 
         public static LocalizationService Localizer { get; } = new();
 

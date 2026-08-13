@@ -9,12 +9,34 @@ namespace ExperimentalRendererWrapper
 {
     public static class ExperimentalRenderer
     {
-        public static string ExperimentalRendererPath = Path.Combine(AppContext.BaseDirectory, "experimental-renderer", "osu-replay-viewer");
+        private const string ApplicationName = "ClientRenderer";
+
+        public static string ExperimentalRendererPath = Path.Combine(GetApplicationRootDirectory(), "experimental-renderer", "osu-replay-viewer");
         public readonly static string ExperimentalRendererDirectoryPath = Path.GetDirectoryName(ExperimentalRendererPath)!;
         public static string FfmpegDirectoryPath => Path.Combine(ExperimentalRendererDirectoryPath, "ffmpeg");
         public static string FfmpegPath => ResolveToolPath("ffmpeg");
         public static string FfprobePath => ResolveToolPath("ffprobe");
         public readonly static string ConfigPath = Path.Combine(ExperimentalRendererDirectoryPath, "orv_config.json");
+
+        private static string GetApplicationRootDirectory()
+        {
+            if (OperatingSystem.IsWindows())
+                return AppContext.BaseDirectory;
+
+            string? xdgDataHome = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+            if (!string.IsNullOrWhiteSpace(xdgDataHome))
+                return Path.Combine(xdgDataHome, ApplicationName);
+
+            string localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localApplicationData))
+                return Path.Combine(localApplicationData, ApplicationName);
+
+            string? homeDirectory = Environment.GetEnvironmentVariable("HOME");
+            if (!string.IsNullOrWhiteSpace(homeDirectory))
+                return Path.Combine(homeDirectory, ".local", "share", ApplicationName);
+
+            return Path.Combine(Path.GetTempPath(), ApplicationName);
+        }
 
         public static async Task<ExperimentalRendererResult> ExecuteAsync(IEnumerable<string> args, ConcurrentDictionary<string, string> renderUpdates, int timeoutMs = 1000_000, CancellationToken cancellationToken = default)
         {

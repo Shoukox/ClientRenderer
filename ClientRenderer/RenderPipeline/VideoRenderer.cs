@@ -124,8 +124,8 @@ namespace ClientRenderer.RenderPipeline
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "danser", false);
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] danser-go failed with exit code {result.ExitCode}. Saving renderer logs.");
-                Directory.CreateDirectory("logs");
-                string logPath = Path.Combine("logs", $"danser_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log");
+                Directory.CreateDirectory(Logger.LogsDirectory);
+                string logPath = Path.Combine(Logger.LogsDirectory, $"danser_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log");
                 File.WriteAllText(logPath,
                     "Danser Standard Output:\n" + result.Output + "\n\n\nDanser Error Output:\n" + result.Error);
                 Logger.Log($"[JobId:{info.RenderJob!.JobId}] danser-go log saved to: {logPath}");
@@ -264,8 +264,8 @@ namespace ClientRenderer.RenderPipeline
             {
                 await serverConnection.Failure(info.RenderJob.JobId, "Failed to render a replay using experimental renderer. Result is not successful", false);
                 Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Experimental renderer failed with exit code {result.ExitCode}. Saving renderer logs.");
-                Directory.CreateDirectory("logs");
-                string logPath = Path.Combine("logs", $"experimental-renderer_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log");
+                Directory.CreateDirectory(Logger.LogsDirectory);
+                string logPath = Path.Combine(Logger.LogsDirectory, $"experimental-renderer_{DateTime.UtcNow:yyyyMMdd_HHmmss_ffff}.log");
                 File.WriteAllText(logPath,
                     "Experimental Renderer Standard Output:\n" + result.Output + "\n\n\nExperimental Renderer Error Output:\n" + result.Error);
                 Logger.Log($"[JobId:{info.RenderJob!.JobId}] Experimental renderer log saved to: {logPath}");

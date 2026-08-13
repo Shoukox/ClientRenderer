@@ -1,4 +1,5 @@
 using ClientRenderer.Logging;
+using ClientRenderer.Startup;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -16,7 +17,7 @@ namespace ClientRenderer.GUI.Configuration
         private readonly string _directoryPath = directoryPath ?? throw new ArgumentNullException(nameof(directoryPath));
 
         public const string ConfigFileName = "settings.json";
-        public readonly string RendererSettingsDirectory = Path.Combine(AppContext.BaseDirectory, "settings");
+        public readonly string RendererSettingsDirectory = AppStoragePaths.GetSettingsDirectory();
 
         public string FilePath => Path.Combine(_directoryPath, ConfigFileName);
 

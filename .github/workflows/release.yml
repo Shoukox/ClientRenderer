@@ -182,7 +182,7 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.version }}
           target_commitish: ${{ needs.prepare.outputs.commit }}
-          name: ClientRenderer ${{ needs.prepare.outputs.version }}
+          name: Version ${{ needs.prepare.outputs.version }}
           generate_release_notes: true
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           fail_on_unmatched_files: true

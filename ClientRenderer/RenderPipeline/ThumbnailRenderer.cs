@@ -18,7 +18,7 @@ namespace ClientRenderer.RenderPipeline
             {
                 FileName = FfmpegPath,
                 ArgumentList = { "-y", "-sseof", "-1", "-i", info.VideoPath, "-frames:v", "1", "-vf", "scale='min(1280,iw)':-2", "-q:v", "15", thumbnailPath },
-                WorkingDirectory = Path.GetDirectoryName(AppContext.BaseDirectory),
+                WorkingDirectory = ExperimentalRenderer.ExperimentalRendererDirectoryPath,
 
                 UseShellExecute = false,
                 CreateNoWindow = true,

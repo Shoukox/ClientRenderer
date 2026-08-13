@@ -1,5 +1,6 @@
 using Serilog;
 using Serilog.Events;
+using ClientRenderer.Startup;
 
 namespace ClientRenderer.Logging;
 
@@ -10,7 +11,7 @@ public static class Logger
     private static readonly object Sync = new();
     private static bool _configured;
 
-    public static readonly string LogsDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+    public static readonly string LogsDirectory = AppStoragePaths.GetLogsDirectory();
 
     public static void Configure(string applicationName)
     {
