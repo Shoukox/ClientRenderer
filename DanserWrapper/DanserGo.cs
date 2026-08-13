@@ -56,6 +56,7 @@ public static class DanserGo
 
             WorkingDirectory = Path.GetDirectoryName(DanserGoPath)
         };
+        ConfigureLinuxFfmpegLibraryPath(processStartInfo);
         foreach (string arg in args)
         {
             processStartInfo.ArgumentList.Add(arg);
@@ -231,6 +232,22 @@ public static class DanserGo
     }
 
     public static bool DanserExists() => File.Exists(DanserGoPath);
+
+    private static void ConfigureLinuxFfmpegLibraryPath(ProcessStartInfo processStartInfo)
+    {
+        if (!OperatingSystem.IsLinux())
+            return;
+
+        string ffmpegDirectory = Path.Combine(DanserGoDirectoryPath, "ffmpeg");
+        if (!Directory.Exists(ffmpegDirectory))
+            return;
+
+        string? currentLibraryPath = Environment.GetEnvironmentVariable("LD_LIBRARY_PATH");
+        processStartInfo.Environment["LD_LIBRARY_PATH"] = string.IsNullOrWhiteSpace(currentLibraryPath)
+            ? ffmpegDirectory
+            : string.Join(Path.PathSeparator, ffmpegDirectory, currentLibraryPath);
+    }
+
     public static void CreateDirectoriesIfNeeded()
     {
         if (!Directory.Exists(VideosPath))

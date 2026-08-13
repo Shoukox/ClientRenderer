@@ -46,7 +46,8 @@ public sealed class RenderWorker(
         {
             try
             {
-                await CheckForUpdatesIfDueAsync(cancellationToken);
+                if (await CheckForUpdatesIfDueAsync(cancellationToken))
+                    continue;
 
                 Logger.Log("Waiting for new jobs...");
                 var renderJob = await serverConnection.GetNextRenderJob();
@@ -54,7 +55,11 @@ public sealed class RenderWorker(
                 {
                     Logger.LogWarning("No render job was available. Polling again in 5 seconds...");
                     await Task.Delay(5000, cancellationToken);
-                    await CheckForUpdatesIfDueAsync(cancellationToken);
+                    if (await CheckForUpdatesIfDueAsync(cancellationToken))
+                    {
+                        renderJob = null;
+                        break;
+                    }
                     renderJob = await serverConnection.GetNextRenderJob();
                 }
 
@@ -161,18 +166,31 @@ public sealed class RenderWorker(
         }
     }
 
-    private async Task CheckForUpdatesIfDueAsync(CancellationToken cancellationToken)
+    private async Task<bool> CheckForUpdatesIfDueAsync(CancellationToken cancellationToken)
     {
+        if (automaticUpdateService != null &&
+            serverConnection.TryConsumeServerUpdateRequest(out string? latestVersion))
+        {
+            Logger.Log($"Server requested a ClientRenderer update to {latestVersion ?? "the latest version"}. Renderer is idle; checking for the update.");
+            _nextUpdateCheckAt = DateTimeOffset.UtcNow + UpdateCheckInterval;
+            return await automaticUpdateService.CheckForUpdatesAsync(cancellationToken);
+        }
+
         if ((automaticUpdateService == null && dependencyUpdateAsync == null) ||
             DateTimeOffset.UtcNow < _nextUpdateCheckAt)
-            return;
+            return false;
 
         _nextUpdateCheckAt = DateTimeOffset.UtcNow + UpdateCheckInterval;
         Logger.Log("Checking for updates before polling for another render job.");
         if (automaticUpdateService != null)
-            await automaticUpdateService.CheckForUpdatesAsync(cancellationToken);
+        {
+            if (await automaticUpdateService.CheckForUpdatesAsync(cancellationToken))
+                return true;
+        }
 
         if (dependencyUpdateAsync != null)
             await dependencyUpdateAsync(cancellationToken);
+
+        return false;
     }
 }

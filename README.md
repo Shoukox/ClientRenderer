@@ -77,7 +77,7 @@ For a standalone, presentation-sized version, see [`docs/architecture.html`](doc
 
 | Mechanism | Behaviour |
 | --- | --- |
-| Renderer heartbeat | Sent every 10 seconds; the server releases a renderer's active job after it becomes unavailable. |
+| Renderer heartbeat | Sent every 10 seconds; the server releases a renderer's active job after it becomes unavailable. Every minute the heartbeat also reports the ClientRenderer version; an update request is applied only between render jobs. |
 | Safe assignment | A PostgreSQL distributed lock and explicit renderer/job state prevent duplicate ownership. |
 | Stuck-job detection | A background service closes jobs that have not reported render activity for 10 minutes. |
 | HTTP resilience | Transient requests use bounded retries with jitter; each video chunk has up to five upload attempts. |
@@ -224,7 +224,7 @@ The worker primarily uses these control-plane endpoints:
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `POST` | `/jwt` | Exchange renderer credentials for a scoped access token |
-| `POST` | `/render/heartbeat` | Refresh renderer liveness |
+| `POST` | `/render/heartbeat` | Refresh renderer liveness; every minute sends `X-Client-Renderer-Version` and may return an idle-update request |
 | `POST` | `/render/get-next-render-job` | Pull the next assigned job |
 | `POST` | `/render/download-replay` | Download the assigned replay |
 | `POST` | `/render/report-rendering-progress` | Update progress and job activity |

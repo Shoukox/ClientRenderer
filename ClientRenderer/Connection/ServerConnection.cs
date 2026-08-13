@@ -1,6 +1,7 @@
 ﻿using ClientRenderer.Abstractions;
 using ClientRenderer.Logging;
 using ClientRenderer.Models;
+using ClientRenderer.Startup;
 using ClientRenderer.Utils;
 using System.Globalization;
 using System.Net;
@@ -21,11 +22,19 @@ namespace ClientRenderer.Connection
 
         private int heartbeatIntervalMs = 10_000;
         private readonly Task _sendHeartbeatsTask;
+        private static readonly TimeSpan VersionReportInterval = TimeSpan.FromMinutes(1);
+        private const string ClientVersionHeader = "X-Client-Renderer-Version";
+        private readonly string _clientVersion = ClientRendererVersion.Current;
+        private DateTimeOffset _nextVersionReportAt = DateTimeOffset.MinValue;
+        private readonly SemaphoreSlim _heartbeatRequestGate = new(1, 1);
 
         private readonly CancellationTokenSource _internalCts;
         private readonly CancellationToken _cancellationToken;
         private readonly object _heartbeatSync = new();
+        private readonly object _updateRequestSync = new();
         private int _consecutiveHeartbeatFailures;
+        private bool _serverUpdateRequested;
+        private string? _serverRequestedLatestVersion;
 
         public event Action<HeartbeatStatus>? HeartbeatStatusChanged;
 
@@ -36,7 +45,7 @@ namespace ClientRenderer.Connection
             _internalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _cancellationToken = _internalCts.Token;
             _sendHeartbeatsTask = Task.Run(SendHeartbeatWorker, _cancellationToken);
-            Logger.Log($"Server connection initialized. Base URL: {_httpClient.BaseAddress}");
+            Logger.Log($"Server connection initialized. Base URL: {_httpClient.BaseAddress}. Client version: {_clientVersion}");
         }
 
         public async Task<bool> InitializeToken()
@@ -122,13 +131,85 @@ namespace ClientRenderer.Connection
 
         private async Task SendHeartbeat()
         {
-            using HttpRequestMessage hrm = new HttpRequestMessage();
-            hrm.Method = HttpMethod.Post;
-            hrm.RequestUri = new Uri(_httpClient.BaseAddress!, "render/heartbeat");
-            hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-            using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
-            response.EnsureSuccessStatusCode();
-            notifyHeartbeatSuccess();
+            await _heartbeatRequestGate.WaitAsync(_cancellationToken);
+            try
+            {
+                bool reportVersion = DateTimeOffset.UtcNow >= _nextVersionReportAt;
+                using HttpRequestMessage hrm = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Post,
+                    RequestUri = new Uri(_httpClient.BaseAddress!, "render/heartbeat")
+                };
+                hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
+                if (reportVersion)
+                {
+                    hrm.Headers.TryAddWithoutValidation(ClientVersionHeader, _clientVersion);
+                }
+
+                using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                if (reportVersion)
+                {
+                    await ProcessHeartbeatResponseAsync(response);
+                    _nextVersionReportAt = DateTimeOffset.UtcNow + VersionReportInterval;
+                }
+
+                notifyHeartbeatSuccess();
+            }
+            finally
+            {
+                _heartbeatRequestGate.Release();
+            }
+        }
+
+        private async Task ProcessHeartbeatResponseAsync(HttpResponseMessage response)
+        {
+            string responseBody = await response.Content.ReadAsStringAsync(_cancellationToken);
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return;
+
+            RendererHeartbeatResponse? heartbeatResponse;
+            try
+            {
+                heartbeatResponse = System.Text.Json.JsonSerializer.Deserialize<RendererHeartbeatResponse>(responseBody);
+            }
+            catch (System.Text.Json.JsonException exception)
+            {
+                // Older servers return an empty 200 response. A malformed
+                // optional response must not make a healthy renderer offline.
+                Logger.LogWarning($"Could not parse the optional heartbeat response: {exception.Message}");
+                return;
+            }
+
+            lock (_updateRequestSync)
+            {
+                _serverUpdateRequested = heartbeatResponse?.UpdateRequired == true;
+                _serverRequestedLatestVersion = heartbeatResponse?.LatestVersion;
+            }
+
+            if (heartbeatResponse?.UpdateRequired == true)
+            {
+                Logger.LogWarning(
+                    $"Server requested a ClientRenderer update. Current version: {_clientVersion}; " +
+                    $"latest version: {heartbeatResponse.LatestVersion ?? "unknown"}. It will be applied when idle.");
+            }
+        }
+
+        public bool TryConsumeServerUpdateRequest(out string? latestVersion)
+        {
+            lock (_updateRequestSync)
+            {
+                if (!_serverUpdateRequested)
+                {
+                    latestVersion = null;
+                    return false;
+                }
+
+                _serverUpdateRequested = false;
+                latestVersion = _serverRequestedLatestVersion;
+                return true;
+            }
         }
 
         public async Task<RenderJob?> GetNextRenderJob(int intervalMs = 2000)
@@ -136,6 +217,12 @@ namespace ClientRenderer.Connection
             RenderJob? renderJob = null;
             while (!_cancellationToken.IsCancellationRequested)
             {
+                // Do not claim a new job after the server has requested an
+                // update. RenderWorker will consume the request at this idle
+                // boundary and let Velopack restart the client.
+                if (HasPendingServerUpdateRequest())
+                    return null;
+
                 try
                 {
                     using HttpRequestMessage hrm = new HttpRequestMessage();
@@ -145,6 +232,9 @@ namespace ClientRenderer.Connection
                     using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
                     if (response.IsSuccessStatusCode)
                     {
+                        if (HasPendingServerUpdateRequest())
+                            return null;
+
                         renderJob = (await response.Content.ReadFromJsonAsync<RenderJob>(_cancellationToken))!;
                         break;
                     }
@@ -154,6 +244,9 @@ namespace ClientRenderer.Connection
                         var responseBody = await TryReadBodyAsync(response);
                         Logger.LogError($"GetNextRenderJob returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
                     }
+
+                    if (HasPendingServerUpdateRequest())
+                        return null;
 
                     await Task.Delay(intervalMs, _cancellationToken);
                 }
@@ -169,6 +262,12 @@ namespace ClientRenderer.Connection
             }
 
             return renderJob;
+        }
+
+        private bool HasPendingServerUpdateRequest()
+        {
+            lock (_updateRequestSync)
+                return _serverUpdateRequested;
         }
 
         public async Task<RenderJob?> GetRenderJobInfo(int jobId)
@@ -366,6 +465,7 @@ namespace ClientRenderer.Connection
             {
                 notifyHeartbeatFailure();
                 _httpClient.Dispose();
+                _heartbeatRequestGate.Dispose();
                 _internalCts.Dispose();
             }
         }

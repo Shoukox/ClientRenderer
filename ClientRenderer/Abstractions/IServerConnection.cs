@@ -5,6 +5,7 @@ namespace ClientRenderer.Abstractions;
 public interface IServerConnection : IAsyncDisposable
 {
     Task<bool> InitializeToken();
+    bool TryConsumeServerUpdateRequest(out string? latestVersion);
     Task<RenderJob?> GetNextRenderJob(int intervalMs = 2000);
     Task<RenderJob?> GetRenderJobInfo(int jobId);
     Task<byte[]> DownloadReplay(int jobId);
