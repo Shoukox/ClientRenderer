@@ -82,10 +82,24 @@ jobs:
           echo "Preparing ClientRenderer release $version from commit $commit"
 
   build:
-    name: Build Windows Velopack package
+    name: Build ${{ matrix.platform }} Velopack package
     needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-latest
+            runtime: win-x64
+            channel: win
+            main_executable: ClientRenderer.GUI.exe
+          - platform: linux
+            runner: ubuntu-latest
+            runtime: linux-x64
+            channel: linux
+            main_executable: ClientRenderer.GUI
     permissions:
       contents: read
     steps:
@@ -99,23 +113,44 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      - name: Install Velopack CLI
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y squashfs-tools
+
+      - name: Install Velopack CLI on Windows
+        if: matrix.platform == 'windows'
         shell: pwsh
         run: |
           dotnet tool install --global vpk --version 1.2.0
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Install Velopack CLI on Linux
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          dotnet tool install --global vpk --version 1.2.0
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
       - name: Build and pack release
         shell: pwsh
         run: |
-          & "$env:GITHUB_WORKSPACE\scripts\publish-gui-release.ps1" `
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts/publish-gui-release.ps1"
+          $outputDirectory = Join-Path $env:GITHUB_WORKSPACE "release-assets"
+          & $scriptPath `
             -Version "${{ needs.prepare.outputs.version }}" `
-            -OutputDirectory "$env:GITHUB_WORKSPACE\release-assets"
+            -Runtime "${{ matrix.runtime }}" `
+            -Channel "${{ matrix.channel }}" `
+            -MainExecutable "${{ matrix.main_executable }}" `
+            -ChecksumFileName "SHA256SUMS-${{ matrix.platform }}.txt" `
+            -OutputDirectory $outputDirectory
 
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
-          name: ClientRenderer-${{ needs.prepare.outputs.version }}
+          name: ClientRenderer-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}
           path: release-assets/*
           if-no-files-found: error
           retention-days: 7
@@ -133,8 +168,14 @@ jobs:
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
-          name: ClientRenderer-${{ needs.prepare.outputs.version }}
-          path: release-assets
+          name: ClientRenderer-${{ needs.prepare.outputs.version }}-windows
+          path: release-assets/windows
+
+      - name: Download Linux release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ClientRenderer-${{ needs.prepare.outputs.version }}-linux
+          path: release-assets/linux
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -145,6 +186,8 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           fail_on_unmatched_files: true
-          files: release-assets/*
+          files: |
+            release-assets/windows/*
+            release-assets/linux/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

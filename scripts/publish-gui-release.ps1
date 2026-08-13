@@ -3,7 +3,15 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $Version,
 
-    [string] $OutputDirectory = ""
+    [string] $OutputDirectory = "",
+
+    [string] $Runtime = "win-x64",
+
+    [string] $Channel = "win",
+
+    [string] $MainExecutable = "",
+
+    [string] $ChecksumFileName = "SHA256SUMS.txt"
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,8 +26,24 @@ if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$') {
 }
 
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$ProjectPath = Join-Path $RepositoryRoot "ClientRenderer.GUI\ClientRenderer.GUI.csproj"
-$PublishDirectory = Join-Path $RepositoryRoot "ClientRenderer.GUI\bin\Release\net9.0\win-x64\publish"
+$ProjectPath = [System.IO.Path]::Combine($RepositoryRoot, "ClientRenderer.GUI", "ClientRenderer.GUI.csproj")
+$PublishDirectory = [System.IO.Path]::Combine(
+    $RepositoryRoot,
+    "ClientRenderer.GUI",
+    "bin",
+    "Release",
+    "net9.0",
+    $Runtime,
+    "publish")
+
+if ([string]::IsNullOrWhiteSpace($MainExecutable)) {
+    $MainExecutable = if ($Runtime -like "win-*") {
+        "ClientRenderer.GUI.exe"
+    }
+    else {
+        "ClientRenderer.GUI"
+    }
+}
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $RepositoryRoot "release-assets"
@@ -45,7 +69,7 @@ $publishArguments = @(
     "publish",
     $ProjectPath,
     "--configuration", "Release",
-    "--runtime", "win-x64",
+    "--runtime", $Runtime,
     "--self-contained", "false",
     "--output", $PublishDirectory,
     "--nologo",
@@ -60,9 +84,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE."
 }
 
-$MainExecutable = Join-Path $PublishDirectory "ClientRenderer.GUI.exe"
-if (-not (Test-Path $MainExecutable)) {
-    throw "The published GUI executable was not found at '$MainExecutable'."
+$MainExecutablePath = Join-Path $PublishDirectory $MainExecutable
+if (-not (Test-Path $MainExecutablePath)) {
+    throw "The published GUI executable was not found at '$MainExecutablePath'."
 }
 
 if (-not (Get-Command vpk -ErrorAction SilentlyContinue)) {
@@ -75,9 +99,10 @@ $packArguments = @(
     "--packId", "SosuBot.ClientRenderer",
     "--packVersion", $Version,
     "--packDir", $PublishDirectory,
-    "--mainExe", "ClientRenderer.GUI.exe",
+    "--mainExe", $MainExecutable,
     "--outputDir", $OutputDirectory,
-    "--channel", "win"
+    "--channel", $Channel,
+    "--runtime", $Runtime
 )
 & vpk @packArguments
 if ($LASTEXITCODE -ne 0) {
@@ -93,7 +118,7 @@ $ChecksumLines = foreach ($Asset in $Assets) {
     $Hash = (Get-FileHash -Path $Asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     "$Hash *$($Asset.Name)"
 }
-$ChecksumLines | Set-Content -Path (Join-Path $OutputDirectory "SHA256SUMS.txt") -Encoding ascii
+$ChecksumLines | Set-Content -Path (Join-Path $OutputDirectory $ChecksumFileName) -Encoding ascii
 
 Write-Host "Release assets created in $OutputDirectory"
 $Assets | ForEach-Object { Write-Host " - $($_.Name)" }

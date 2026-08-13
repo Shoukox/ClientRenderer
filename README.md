@@ -143,9 +143,9 @@ git commit -m "release: 2.0.10"
 git push origin avalonia
 ```
 
-The workflow publishes the Windows Velopack assets (`RELEASES`, `.nupkg`,
-installer and checksums) and creates the `2.0.10` GitHub Release. The same
-process can be started manually from **Actions → Build and publish
+The workflow publishes Windows and Linux Velopack assets (including the
+Windows installer, Linux AppImage, packages and checksums) and creates the
+`2.0.10` GitHub Release. The same process can be started manually from **Actions → Build and publish
 ClientRenderer GUI → Run workflow** by entering a version.
 
 For a local release, install the Velopack CLI once and run:
@@ -153,6 +153,15 @@ For a local release, install the Velopack CLI once and run:
 ```powershell
 dotnet tool install --global vpk --version 1.2.0
 powershell -ExecutionPolicy Bypass -File .\scripts\publish-gui-release.ps1 -Version 2.0.10
+```
+
+On Linux, install `squashfs-tools` for AppImage packaging and run the same
+script with the Linux runtime and channel:
+
+```bash
+sudo apt-get install squashfs-tools
+dotnet tool install --global vpk --version 1.2.0
+pwsh ./scripts/publish-gui-release.ps1 -Version 2.0.10 -Runtime linux-x64 -Channel linux -MainExecutable ClientRenderer.GUI
 ```
 
 The old commands in `ClientRenderer.GUI/publish-update-commands.txt` are kept
