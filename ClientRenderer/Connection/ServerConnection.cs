@@ -22,10 +22,8 @@ namespace ClientRenderer.Connection
 
         private int heartbeatIntervalMs = 10_000;
         private readonly Task _sendHeartbeatsTask;
-        private static readonly TimeSpan VersionReportInterval = TimeSpan.FromMinutes(1);
         private const string ClientVersionHeader = "X-Client-Renderer-Version";
         private readonly string _clientVersion = ClientRendererVersion.Current;
-        private DateTimeOffset _nextVersionReportAt = DateTimeOffset.MinValue;
         private readonly SemaphoreSlim _heartbeatRequestGate = new(1, 1);
 
         private readonly CancellationTokenSource _internalCts;
@@ -134,26 +132,18 @@ namespace ClientRenderer.Connection
             await _heartbeatRequestGate.WaitAsync(_cancellationToken);
             try
             {
-                bool reportVersion = DateTimeOffset.UtcNow >= _nextVersionReportAt;
                 using HttpRequestMessage hrm = new HttpRequestMessage
                 {
                     Method = HttpMethod.Post,
                     RequestUri = new Uri(_httpClient.BaseAddress!, "render/heartbeat")
                 };
                 hrm.Headers.Authorization = AuthenticationHeaderValue.Parse($"Bearer {_lastClientCredentialsGrantResponse!.AccessToken}");
-                if (reportVersion)
-                {
-                    hrm.Headers.TryAddWithoutValidation(ClientVersionHeader, _clientVersion);
-                }
+                hrm.Headers.TryAddWithoutValidation(ClientVersionHeader, _clientVersion);
 
                 using var response = await _httpClient.SendAsync(hrm, _cancellationToken);
                 response.EnsureSuccessStatusCode();
 
-                if (reportVersion)
-                {
-                    await ProcessHeartbeatResponseAsync(response);
-                    _nextVersionReportAt = DateTimeOffset.UtcNow + VersionReportInterval;
-                }
+                await ProcessHeartbeatResponseAsync(response);
 
                 notifyHeartbeatSuccess();
             }
@@ -239,7 +229,10 @@ namespace ClientRenderer.Connection
                         break;
                     }
 
-                    if (response.StatusCode != HttpStatusCode.NotFound && response.StatusCode != HttpStatusCode.Conflict && response.StatusCode != HttpStatusCode.BadRequest)
+                    if (response.StatusCode != HttpStatusCode.NotFound &&
+                        response.StatusCode != HttpStatusCode.Conflict &&
+                        response.StatusCode != HttpStatusCode.BadRequest &&
+                        response.StatusCode != HttpStatusCode.UpgradeRequired)
                     {
                         var responseBody = await TryReadBodyAsync(response);
                         Logger.LogError($"GetNextRenderJob returned {(int)response.StatusCode} {response.StatusCode}. {responseBody}");
