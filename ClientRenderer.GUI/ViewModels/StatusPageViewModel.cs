@@ -219,17 +219,17 @@ namespace ClientRenderer.GUI.ViewModels
                 Logger.LogError(ex, "Failed to save settings before opening the client settings file.");
             }
 
-            Logger.Log($"Opening client settings file: {App.SettingsProvider.FilePath}");
-            Process? process = Process.Start(new ProcessStartInfo
-            {
-                FileName = App.SettingsProvider.FilePath,
-                UseShellExecute = true
-            });
-
-            if (process is not null)
-                await process.WaitForExitAsync();
-
-            ApplicationRestartHelper.RestartApplication();
+            // Logger.Log($"Opening client settings file: {App.SettingsProvider.FilePath}");
+            // Process? process = Process.Start(new ProcessStartInfo
+            // {
+            //     FileName = App.SettingsProvider.FilePath,
+            //     UseShellExecute = true
+            // });
+            //
+            // if (process is not null)
+            //     await process.WaitForExitAsync();
+            //
+            // ApplicationRestartHelper.RestartApplication();
         }
 
         [RelayCommand]

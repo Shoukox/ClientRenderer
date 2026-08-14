@@ -41,10 +41,10 @@ namespace ClientRenderer.GUI.Services
         // This is the version used by older ClientRenderer builds that did not
         // write a local dependency marker. It lets the first run of this
         // updater detect a newer experimental-renderer release.
-        private const string ExperimentalRendererLegacyInstalledVersion = "0.9.0";
-        private const string ExperimentalRendererFallbackVersion = "0.9.1";
+        private const string ExperimentalRendererLegacyInstalledVersion = "0.9.4";
+        private const string ExperimentalRendererFallbackVersion = "0.9.4";
         private const string ExperimentalRendererFallbackReleaseBaseUrl =
-            "https://github.com/Shoukox/osu-replay-viewer-continued/releases/download/v0.9.1";
+            "https://github.com/Shoukox/osu-replay-viewer-continued/releases/download/v0.9.4";
         private const string ExperimentalRendererLatestReleaseApiUrl =
             "https://api.github.com/repos/Shoukox/osu-replay-viewer-continued/releases/latest";
         private const string ExperimentalRendererVersionFileName = ".renderer-version";
