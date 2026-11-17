@@ -124,14 +124,14 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          dotnet tool install --global vpk --version 1.2.0
+          dotnet tool install --global vpk --version 1.2.161
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Velopack CLI on Linux
         if: matrix.platform == 'linux'
         shell: bash
         run: |
-          dotnet tool install --global vpk --version 1.2.0
+          dotnet tool install --global vpk --version 1.2.161
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
       - name: Build and pack release

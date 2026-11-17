@@ -151,7 +151,7 @@ ClientRenderer GUI → Run workflow** by entering a version.
 For a local release, install the Velopack CLI once and run:
 
 ```powershell
-dotnet tool install --global vpk --version 1.2.0
+dotnet tool install --global vpk --version 1.2.161
 powershell -ExecutionPolicy Bypass -File .\scripts\publish-gui-release.ps1 -Version 2.0.10
 ```
 
@@ -160,7 +160,7 @@ script with the Linux runtime and channel:
 
 ```bash
 sudo apt-get install squashfs-tools
-dotnet tool install --global vpk --version 1.2.0
+dotnet tool install --global vpk --version 1.2.161
 pwsh ./scripts/publish-gui-release.ps1 -Version 2.0.10 -Runtime linux-x64 -Channel linux -MainExecutable ClientRenderer.GUI
 ```
 

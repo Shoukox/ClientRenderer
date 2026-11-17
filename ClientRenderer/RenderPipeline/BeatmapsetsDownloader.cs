@@ -6,6 +6,7 @@ using ClientRenderer.Startup;
 using DanserWrapper;
 using OsuApi.BanchoV2;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO.Compression;
 
 namespace ClientRenderer.Render;
@@ -14,7 +15,18 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
 {
     private const string BeatmapNotFoundFailureReason = "beatmap_not_found";
     private const string BeatmapsetDownloadFailedFailureReason = "beatmapset_download_failed";
-    private static readonly TimeSpan FirstBeatmapsetByteTimeout = TimeSpan.FromSeconds(15);
+
+    // HttpClient.Timeout only covers the response headers (providers use ResponseHeadersRead),
+    // so the body transfer is policed here instead.
+    private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan SpeedCheckGracePeriod = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan SpeedWindow = TimeSpan.FromSeconds(5);
+    // Judged on the remaining time, so an almost finished download is never thrown away.
+    private static readonly TimeSpan MaxProjectedRemainingDuration = TimeSpan.FromSeconds(10);
+    private const double MinBytesPerSecondWhenSizeUnknown = 512 * 1024;
+    private static readonly TimeSpan SlowProviderPenalty = TimeSpan.FromMinutes(30);
+    // The server closes a job as "Stuck" after 10 minutes without a progress report.
+    private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(60);
 
     private static HttpClient s_HttpClient { get; } = new() { Timeout = TimeSpan.FromSeconds(30) };
 
@@ -22,11 +34,15 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
     private List<string> BeatmapsMd5Hashes = new();
     private DateTime _lastHashesReloadAtUtc = DateTime.MinValue;
     private static readonly TimeSpan HashesReloadInterval = TimeSpan.FromMinutes(5);
+    private readonly Dictionary<BeatmapsetsProviderBase, DateTime> _slowProvidersUntilUtc = new();
 
     private readonly object _locker = new();
 
+    /// <summary>
+    /// Providers in their default priority. Syui must stay ahead of Sayobot: Sayobot cannot look up
+    /// a beatmap hash itself and reuses the beatmapset id found by an earlier provider.
+    /// </summary>
     public BeatmapsetsProviderBase[] BeatmapsetsProviders { get; }
-    public BeatmapsetsProviderBase FallbackProvider => BeatmapsetsProviders.Last();
 
     public BeatmapsetsDownloader(BanchoApiV2 banchoApiV2, string osuSessionCookie)
     {
@@ -78,39 +94,6 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             return BeatmapsMd5Hashes.Any(m => m.Equals(beatmapHash, StringComparison.InvariantCultureIgnoreCase));
     }
 
-    public async Task<Result<Stream>> DownloadBeatmapsetAsStream(string beatmapHash)
-    {
-        Exception? lastException = null;
-
-        foreach (var provider in BeatmapsetsProviders)
-        {
-            string providerName = provider.GetType().Name;
-            var downloadResult = await provider.DownloadBeatmapset(beatmapHash);
-            if (!downloadResult.Success)
-            {
-                lastException = downloadResult.Exception;
-                continue;
-            }
-
-            var firstByteResult = await EnsureFirstBeatmapsetByteArrives(downloadResult.Output!, providerName);
-            if (firstByteResult.Success)
-                return firstByteResult;
-
-            lastException = firstByteResult.Exception;
-            Logger.LogError(firstByteResult.Exception!, $"{providerName} did not return beatmapset data quickly enough. Trying another provider.");
-        }
-
-        return Result<Stream>.FromFailure(lastException ?? new Exception("Failed to download a beatmapset"));
-    }
-
-    public async Task<Result<Stream>> DownloadBeatmapsetAsStreamUsingFallbackProvider(string beatmapHash)
-    {
-        var downloadResult = await FallbackProvider.DownloadBeatmapset(beatmapHash);
-        return downloadResult.Success
-            ? await EnsureFirstBeatmapsetByteArrives(downloadResult.Output!, FallbackProvider.GetType().Name)
-            : Result<Stream>.FromFailure(new Exception("Failed to download a beatmapset"));
-    }
-
     public async Task<Result> SetBeatmapsetInfos(string beatmapHash)
     {
         foreach (var provider in BeatmapsetsProviders.Reverse())
@@ -135,211 +118,277 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
         return false;
     }
 
-    public async Task<Result> SaveBeatmapsetStreamAsFile(RenderPipelineInfo info, Stream beatmapsetStream)
+    private async Task<Result> SaveBeatmapsetArchive(RenderPipelineInfo info, MemoryStream oszStream)
     {
-        using (var oszStream = beatmapsetStream)
+        string tempSuffix = $".download-{Guid.NewGuid():N}";
+        string tempBeatmapsetDirectoryPath = info.BeatmapsetDirectoryPath + tempSuffix;
+        string tempBeatmapsetOszPath = info.BeatmapsetOszPath + tempSuffix;
+
+        try
         {
-            MemoryStream oszStreamCopy = new MemoryStream();
-
-            await oszStream.CopyToAsync(oszStreamCopy);
-            oszStreamCopy.Position = 0;
-
-            if (oszStreamCopy.Length == 0)
+            if (info.UseExperimentalRenderer)
             {
-                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset stream was empty.");
-                return Result.FromFailure(new InvalidDataException("The downloaded beatmapset is empty."));
+                using FileStream fs = new FileStream(tempBeatmapsetOszPath, FileMode.CreateNew, FileAccess.Write);
+                await oszStream.CopyToAsync(fs);
+                oszStream.Position = 0;
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive saved for experimental renderer: {tempBeatmapsetOszPath}");
             }
 
-            string tempSuffix = $".download-{Guid.NewGuid():N}";
-            string tempBeatmapsetDirectoryPath = info.BeatmapsetDirectoryPath + tempSuffix;
-            string tempBeatmapsetOszPath = info.BeatmapsetOszPath + tempSuffix;
+            ZipFile.ExtractToDirectory(oszStream, tempBeatmapsetDirectoryPath);
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive extracted to: {tempBeatmapsetDirectoryPath}");
 
-            try
+            if (!await BeatmapsetDirectoryContainsHash(tempBeatmapsetDirectoryPath, info.BeatmapHash))
             {
-                if (info.UseExperimentalRenderer)
-                {
-                    using FileStream fs = new FileStream(tempBeatmapsetOszPath, FileMode.CreateNew, FileAccess.Write);
-                    await oszStreamCopy.CopyToAsync(fs);
-                    oszStreamCopy.Position = 0;
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive saved for experimental renderer: {tempBeatmapsetOszPath}");
-                }
-
-                ZipFile.ExtractToDirectory(oszStreamCopy, tempBeatmapsetDirectoryPath);
-                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive extracted to: {tempBeatmapsetDirectoryPath}");
-
-                if (!await BeatmapsetDirectoryContainsHash(tempBeatmapsetDirectoryPath, info.BeatmapHash))
-                {
-                    Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset archive does not contain beatmap hash {info.BeatmapHash}.");
-                    return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive does not contain the requested beatmap."));
-                }
-
-                if (Directory.Exists(info.BeatmapsetDirectoryPath))
-                    Directory.Delete(info.BeatmapsetDirectoryPath, true);
-
-                Directory.Move(tempBeatmapsetDirectoryPath, info.BeatmapsetDirectoryPath);
-                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset moved to: {info.BeatmapsetDirectoryPath}");
-
-                if (info.UseExperimentalRenderer)
-                {
-                    if (File.Exists(info.BeatmapsetOszPath))
-                        File.Delete(info.BeatmapsetOszPath);
-
-                    File.Move(tempBeatmapsetOszPath, info.BeatmapsetOszPath);
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive moved to: {info.BeatmapsetOszPath}");
-                }
-
-                return Result.FromSuccess();
+                Logger.LogError($"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset archive does not contain beatmap hash {info.BeatmapHash}.");
+                return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive does not contain the requested beatmap."));
             }
-            catch (InvalidDataException ex)
-            {
-                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset archive is invalid.");
-                return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive is corrupt or is not a valid .osz/.zip file.", ex));
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to save downloaded beatmapset.");
-                return Result.FromFailure(ex);
-            }
-            finally
-            {
-                if (Directory.Exists(tempBeatmapsetDirectoryPath))
-                {
-                    Directory.Delete(tempBeatmapsetDirectoryPath, true);
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Deleted temporary beatmapset directory: {tempBeatmapsetDirectoryPath}");
-                }
 
-                if (File.Exists(tempBeatmapsetOszPath))
-                {
-                    File.Delete(tempBeatmapsetOszPath);
-                    Logger.Log($"[JobId:{info.RenderJob!.JobId}] Deleted temporary beatmapset archive: {tempBeatmapsetOszPath}");
-                }
+            if (Directory.Exists(info.BeatmapsetDirectoryPath))
+                Directory.Delete(info.BeatmapsetDirectoryPath, true);
+
+            Directory.Move(tempBeatmapsetDirectoryPath, info.BeatmapsetDirectoryPath);
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset moved to: {info.BeatmapsetDirectoryPath}");
+
+            if (info.UseExperimentalRenderer)
+            {
+                if (File.Exists(info.BeatmapsetOszPath))
+                    File.Delete(info.BeatmapsetOszPath);
+
+                File.Move(tempBeatmapsetOszPath, info.BeatmapsetOszPath);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Beatmapset archive moved to: {info.BeatmapsetOszPath}");
+            }
+
+            return Result.FromSuccess();
+        }
+        catch (InvalidDataException ex)
+        {
+            Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Downloaded beatmapset archive is invalid.");
+            return Result.FromFailure(new InvalidDataException("The downloaded beatmapset archive is corrupt or is not a valid .osz/.zip file.", ex));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"[JobId:{info.RenderJob!.JobId}] Failed to save downloaded beatmapset.");
+            return Result.FromFailure(ex);
+        }
+        finally
+        {
+            if (Directory.Exists(tempBeatmapsetDirectoryPath))
+            {
+                Directory.Delete(tempBeatmapsetDirectoryPath, true);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Deleted temporary beatmapset directory: {tempBeatmapsetDirectoryPath}");
+            }
+
+            if (File.Exists(tempBeatmapsetOszPath))
+            {
+                File.Delete(tempBeatmapsetOszPath);
+                Logger.Log($"[JobId:{info.RenderJob!.JobId}] Deleted temporary beatmapset archive: {tempBeatmapsetOszPath}");
             }
         }
     }
 
-    private async Task<Result> DownloadAndSaveValidBeatmapset(RenderPipelineInfo info)
+    private async Task<Result> DownloadAndSaveValidBeatmapset(RenderPipelineInfo info, IServerConnection serverConnection)
     {
         Exception? lastException = null;
+        List<BeatmapsetsProviderBase> providers = GetProvidersInPreferredOrder();
+        List<(BeatmapsetsProviderBase Provider, double BytesPerSecond)> slowButWorkingProviders = new();
 
-        foreach (var provider in BeatmapsetsProviders)
+        for (int i = 0; i < providers.Count; i++)
+        {
+            // The last provider has no alternative left, so it is allowed to be slow.
+            var attempt = await TryProvider(providers[i], enforceMinimumSpeed: i < providers.Count - 1);
+            if (attempt.Success)
+                return attempt;
+
+            lastException = attempt.Exception;
+            if (attempt.Exception is BeatmapsetDownloadTooSlowException { Stalled: false } tooSlow)
+                slowButWorkingProviders.Add((providers[i], tooSlow.BytesPerSecond));
+        }
+
+        // Everything else failed: a slow download is still better than a failed job.
+        foreach (var provider in slowButWorkingProviders.OrderByDescending(m => m.BytesPerSecond).Select(m => m.Provider))
+        {
+            Logger.LogWarning($"[JobId:{info.RenderJob!.JobId}] All providers failed. Retrying {provider.GetType().Name} without the speed limit.");
+            var attempt = await TryProvider(provider, enforceMinimumSpeed: false);
+            if (attempt.Success)
+                return attempt;
+
+            lastException = attempt.Exception;
+        }
+
+        return Result.FromFailure(lastException ?? new Exception("Failed to download a valid beatmapset."));
+
+        async Task<Result> TryProvider(BeatmapsetsProviderBase provider, bool enforceMinimumSpeed)
         {
             string providerName = provider.GetType().Name;
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading beatmapset using {providerName}...");
 
-            var downloadResult = await provider.DownloadBeatmapset(info.BeatmapHash);
+            var downloadResult = await provider.DownloadBeatmapset(info.BeatmapHash, includeVideo: info.RenderJob.RenderSettings.Video);
             if (!downloadResult.Success)
             {
-                lastException = downloadResult.Exception;
                 Logger.LogError(downloadResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} failed to download beatmapset.");
-                continue;
+                return Result.FromFailure(downloadResult.Exception!);
             }
 
-            var firstByteResult = await EnsureFirstBeatmapsetByteArrives(downloadResult.Output!, providerName);
-            if (!firstByteResult.Success)
+            var readResult = await ReadBeatmapsetAsync(downloadResult.Output!, providerName, enforceMinimumSpeed, info, serverConnection);
+            if (!readResult.Success)
             {
-                lastException = firstByteResult.Exception;
-                Logger.LogError(firstByteResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} did not return beatmapset data quickly enough. Trying another provider.");
-                continue;
+                if (readResult.Exception is BeatmapsetDownloadTooSlowException)
+                    MarkProviderSlow(provider);
+
+                Logger.LogError(readResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} failed to transfer the beatmapset. Trying another provider.");
+                return Result.FromFailure(readResult.Exception!);
             }
 
-            var saveResult = await SaveBeatmapsetStreamAsFile(info, firstByteResult.Output!);
-            if (saveResult.Success)
-                return Result.FromSuccess();
+            using MemoryStream oszStream = readResult.Output!;
+            var saveResult = await SaveBeatmapsetArchive(info, oszStream);
+            if (!saveResult.Success)
+                Logger.LogError(saveResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} returned an invalid beatmapset. Trying another provider.");
 
-            lastException = saveResult.Exception;
-            Logger.LogError(saveResult.Exception!, $"[JobId:{info.RenderJob!.JobId}] {providerName} returned an invalid beatmapset. Trying another provider.");
+            return saveResult;
         }
-
-        return Result.FromFailure(lastException ?? new Exception("Failed to download a valid beatmapset."));
     }
 
-    private static async Task<Result<Stream>> EnsureFirstBeatmapsetByteArrives(Stream stream, string providerName)
+    private async Task<Result<MemoryStream>> ReadBeatmapsetAsync(
+        BeatmapsetDownload download,
+        string providerName,
+        bool enforceMinimumSpeed,
+        RenderPipelineInfo info,
+        IServerConnection serverConnection)
     {
-        byte[] firstByte = new byte[1];
+        await using var _ = download;
+        int initialCapacity = download.ContentLength is > 0 and <= int.MaxValue ? (int)download.ContentLength.Value : 0;
+        MemoryStream buffer = new MemoryStream(initialCapacity);
+        byte[] chunk = new byte[81920];
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TimeSpan lastKeepAlive = TimeSpan.Zero;
+        // (elapsed, bytes received) samples over the last SpeedWindow. Mirrors often send the first
+        // megabytes fast and then throttle, so the average speed would hide the slowdown.
+        Queue<(TimeSpan Elapsed, long Bytes)> speedSamples = new();
+        speedSamples.Enqueue((TimeSpan.Zero, 0));
+        using CancellationTokenSource stallCts = new CancellationTokenSource();
 
         try
         {
-            int bytesRead = await stream.ReadAsync(firstByte.AsMemory(0, 1)).AsTask().WaitAsync(FirstBeatmapsetByteTimeout);
-            if (bytesRead == 0)
+            while (true)
             {
-                await stream.DisposeAsync();
-                return Result<Stream>.FromFailure(new InvalidDataException($"{providerName} returned an empty beatmapset stream."));
+                int read;
+                stallCts.CancelAfter(StallTimeout);
+                try
+                {
+                    read = await download.Content.ReadAsync(chunk, stallCts.Token);
+                }
+                catch (OperationCanceledException ex) when (stallCts.IsCancellationRequested)
+                {
+                    throw new BeatmapsetDownloadTooSlowException(
+                        $"{providerName} sent no data for {StallTimeout.TotalSeconds:0} seconds.", stalled: true, ex);
+                }
+
+                if (read == 0)
+                    break;
+
+                buffer.Write(chunk, 0, read);
+                TimeSpan elapsed = stopwatch.Elapsed;
+                speedSamples.Enqueue((elapsed, buffer.Length));
+                while (speedSamples.Count > 2 && elapsed - speedSamples.ElementAt(1).Elapsed >= SpeedWindow)
+                    speedSamples.Dequeue();
+
+                var windowStart = speedSamples.Peek();
+                double recentBytesPerSecond = (buffer.Length - windowStart.Bytes) /
+                                              Math.Max((elapsed - windowStart.Elapsed).TotalSeconds, 0.001);
+
+                if (enforceMinimumSpeed && elapsed >= SpeedCheckGracePeriod &&
+                    GetSlownessReason(buffer.Length, download.ContentLength, recentBytesPerSecond) is { } slownessReason)
+                {
+                    throw new BeatmapsetDownloadTooSlowException($"{providerName} is too slow: {slownessReason}", stalled: false)
+                    {
+                        BytesPerSecond = buffer.Length / elapsed.TotalSeconds
+                    };
+                }
+
+                if (elapsed - lastKeepAlive >= KeepAliveInterval)
+                {
+                    lastKeepAlive = elapsed;
+                    await KeepJobAliveAsync(info, serverConnection);
+                }
             }
 
-            return Result<Stream>.FromSuccess(new PrefixedStream(firstByte[0], stream));
-        }
-        catch (TimeoutException ex)
-        {
-            await stream.DisposeAsync();
-            return Result<Stream>.FromFailure(new TimeoutException($"{providerName} did not send the first .osz byte within {FirstBeatmapsetByteTimeout.TotalSeconds:0} seconds.", ex));
+            if (buffer.Length == 0)
+                throw new InvalidDataException($"{providerName} returned an empty beatmapset.");
+
+            if (download.ContentLength is { } expectedLength && buffer.Length != expectedLength)
+                throw new InvalidDataException($"{providerName} returned {buffer.Length} of {expectedLength} bytes.");
+
+            double seconds = Math.Max(stopwatch.Elapsed.TotalSeconds, 0.001);
+            Logger.Log($"[JobId:{info.RenderJob!.JobId}] {providerName} transferred {buffer.Length / 1024.0 / 1024.0:0.0} MiB " +
+                       $"in {seconds:0.0} s ({buffer.Length / seconds / 1024.0 / 1024.0:0.00} MiB/s).");
+
+            buffer.Position = 0;
+            return Result<MemoryStream>.FromSuccess(buffer);
         }
         catch (Exception ex)
         {
-            await stream.DisposeAsync();
-            return Result<Stream>.FromFailure(ex);
+            await buffer.DisposeAsync();
+            return Result<MemoryStream>.FromFailure(ex);
         }
     }
 
-    private sealed class PrefixedStream(byte firstByte, Stream innerStream) : Stream
+    private static string? GetSlownessReason(long receivedBytes, long? contentLength, double bytesPerSecond)
     {
-        private bool _firstByteRead;
-
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-
-        public override void Flush() => innerStream.Flush();
-
-        public override int Read(byte[] buffer, int offset, int count)
+        if (contentLength is > 0)
         {
-            if (count <= 0)
-                return 0;
-
-            if (_firstByteRead)
-                return innerStream.Read(buffer, offset, count);
-
-            buffer[offset] = firstByte;
-            _firstByteRead = true;
-            return 1;
+            TimeSpan remaining = TimeSpan.FromSeconds(Math.Max(0, contentLength.Value - receivedBytes) / bytesPerSecond);
+            return remaining > MaxProjectedRemainingDuration
+                ? $"{bytesPerSecond / 1024.0:0} KiB/s, the rest of the archive would take about {remaining.TotalSeconds:0} s"
+                : null;
         }
 
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        return bytesPerSecond < MinBytesPerSecondWhenSizeUnknown
+            ? $"{bytesPerSecond / 1024.0:0} KiB/s"
+            : null;
+    }
+
+    private static async Task KeepJobAliveAsync(RenderPipelineInfo info, IServerConnection serverConnection)
+    {
+        try
         {
-            if (buffer.Length <= 0)
-                return 0;
-
-            if (_firstByteRead)
-                return await innerStream.ReadAsync(buffer, cancellationToken);
-
-            buffer.Span[0] = firstByte;
-            _firstByteRead = true;
-            return 1;
+            await serverConnection.ReportRenderingProgress(info.RenderJob!.JobId, -1);
         }
-
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        catch (Exception ex)
         {
-            return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+            Logger.LogWarning($"[JobId:{info.RenderJob!.JobId}] Failed to report beatmapset download activity: {ex.Message}");
         }
+    }
 
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-        protected override void Dispose(bool disposing)
+    private List<BeatmapsetsProviderBase> GetProvidersInPreferredOrder()
+    {
+        lock (_locker)
         {
-            if (disposing)
-                innerStream.Dispose();
+            DateTime now = DateTime.UtcNow;
+            foreach (var expired in _slowProvidersUntilUtc.Where(m => m.Value <= now).Select(m => m.Key).ToList())
+                _slowProvidersUntilUtc.Remove(expired);
 
-            base.Dispose(disposing);
+            return BeatmapsetsProviders.Where(p => !_slowProvidersUntilUtc.ContainsKey(p))
+                .Concat(BeatmapsetsProviders.Where(p => _slowProvidersUntilUtc.ContainsKey(p)))
+                .ToList();
         }
+    }
 
-        public override async ValueTask DisposeAsync()
-        {
-            await innerStream.DisposeAsync();
-            await base.DisposeAsync();
-        }
+    private void MarkProviderSlow(BeatmapsetsProviderBase provider)
+    {
+        lock (_locker)
+            _slowProvidersUntilUtc[provider] = DateTime.UtcNow + SlowProviderPenalty;
+
+        Logger.LogWarning($"{provider.GetType().Name} will be tried last for the next {SlowProviderPenalty.TotalMinutes:0} minutes.");
+    }
+
+    private sealed class BeatmapsetDownloadTooSlowException(string message, bool stalled, Exception? innerException = null)
+        : TimeoutException(message, innerException)
+    {
+        /// <summary>True when no data arrived at all; false when data arrived, just too slowly.</summary>
+        public bool Stalled { get; } = stalled;
+
+        /// <summary>Average speed measured before the download was aborted.</summary>
+        public double BytesPerSecond { get; init; }
     }
 
     public async Task<bool> DownloadBeatmapset(RenderPipelineInfo info, IServerConnection serverConnection)
@@ -357,7 +406,7 @@ public class BeatmapsetsDownloader : IBeatmapsetsDownloader
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Requested beatmap was not found locally.");
             Logger.Log($"[JobId:{info.RenderJob!.JobId}] Downloading beatmapset...");
 
-            var downloadResult = await DownloadAndSaveValidBeatmapset(info);
+            var downloadResult = await DownloadAndSaveValidBeatmapset(info, serverConnection);
             if (!downloadResult.Success)
             {
                 string failureReason = downloadResult.Exception is KeyNotFoundException

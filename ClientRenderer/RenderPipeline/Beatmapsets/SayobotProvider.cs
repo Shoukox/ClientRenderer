@@ -11,17 +11,17 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
         private const string BaseUrlSayobotApi = "https://api.sayobot.cn/";
         private const string BaseUrlSayobotDownload = "https://dl.sayobot.cn/";
 
-        public override async Task<Result<Stream>> DownloadBeatmapset(string beatmapHash)
+        public override async Task<Result<BeatmapsetDownload>> DownloadBeatmapset(string beatmapHash, bool includeVideo)
         {
             await SetBeatmapsetInfos(beatmapHash);
 
             if (!HashToValues.TryGetValue(beatmapHash, out var result))
             {
                 Logger.LogWarning($"SayobotProvider could not find beatmap info for hash: {beatmapHash}");
-                return Result<Stream>.FromFailure(new KeyNotFoundException(beatmapHash));
+                return Result<BeatmapsetDownload>.FromFailure(new KeyNotFoundException(beatmapHash));
             }
 
-            return await DownloadBeatmapset(result.BeatmapsetId);
+            return await DownloadBeatmapset(result.BeatmapsetId, includeVideo);
         }
 
         public override async Task<Result> SetBeatmapsetInfos(string beatmapHash)
@@ -60,21 +60,20 @@ namespace ClientRenderer.RenderPipeline.Beatmapsets
             }
         }
 
-        private async Task<Result<Stream>> DownloadBeatmapset(int beatmapsetId)
+        private async Task<Result<BeatmapsetDownload>> DownloadBeatmapset(int beatmapsetId, bool includeVideo)
         {
             try
             {
-                using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, BaseUrlSayobotDownload + $"beatmaps/download/full/{beatmapsetId}");
+                using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, BaseUrlSayobotDownload + $"beatmaps/download/{(includeVideo ? "full" : "novideo")}/{beatmapsetId}");
                 BrowserHelper.SimulateBrowser(request);
-                var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-                Logger.Log($"SayobotProvider downloaded beatmapset {beatmapsetId}.");
-                return Result<Stream>.FromSuccess(await response.Content.ReadAsStreamAsync());
+                BeatmapsetDownload download = await OpenDownloadAsync(httpClient, request);
+                Logger.Log($"SayobotProvider started downloading beatmapset {beatmapsetId} ({FormatSize(download.ContentLength)}).");
+                return Result<BeatmapsetDownload>.FromSuccess(download);
             }
             catch (Exception e)
             {
                 Logger.LogError(e, $"SayobotProvider failed to download beatmapset {beatmapsetId}.");
-                return Result<Stream>.FromFailure(e);
+                return Result<BeatmapsetDownload>.FromFailure(e);
             }
         }
     }
